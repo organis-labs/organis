@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; script-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'">
   <title>Organis</title>
   <link rel="stylesheet" href="style.css">
+  <script src="renderer.js" defer></script>
 </head>
 <body>
   <main>
@@ -16,6 +17,17 @@
     <section aria-label="Development status">
       <span class="dot" aria-hidden="true"></span>
       <div><h2>The foundation is ready.</h2><p>This early build opens locally. Agent connections and workspace controls are coming next.</p></div>
+    </section>
+    <section class="updates" aria-label="Application updates">
+      <div>
+        <h2>Application updates</h2>
+        <p id="app-version"></p>
+        <p id="update-status" role="status" aria-live="polite">Loading update status…</p>
+        <div class="update-actions">
+          <button id="check-update" type="button">Check for updates</button>
+          <button id="install-update" type="button" hidden>Restart and install</button>
+        </div>
+      </div>
     </section>
     <footer>Desktop preview · No account required</footer>
   </main>

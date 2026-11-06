@@ -11,3 +11,8 @@ section { display: flex; gap: 16px; border-top: 1px solid #dcded4; padding-top: 
 h2 { font-size: 16px; margin: 0 0 8px; }
 section p { font-size: 14px; line-height: 1.7; color: #62685f; margin: 0; }
 footer { margin-top: 48px; color: #7d8478; font-size: 12px; }
+.updates { margin-top: 28px; }
+.update-actions { display: flex; gap: 12px; margin-top: 16px; }
+button { font: inherit; font-size: 13px; background: #303330; color: #faf4ea; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+button:focus-visible { outline: 3px solid #42ac6b; outline-offset: 3px; }

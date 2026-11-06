@@ -1,10 +1,16 @@
 {
   "name": "organis-workspace",
-  "version": "0.1.0-dev.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "type": "module",
-  "engines": { "node": "24.22.2" },
-  "workspaces": ["apps/cli", "apps/desktop", "packages/runtime"],
+  "engines": {
+    "node": "24.22.2"
+  },
+  "workspaces": [
+    "apps/cli",
+    "apps/desktop",
+    "packages/runtime"
+  ],
   "scripts": {
     "start": "electron apps/desktop",
     "cli": "node apps/cli/src/main.mjs",
@@ -12,10 +18,14 @@
     "build": "node scripts/build.mjs",
     "smoke:desktop": "electron apps/desktop --smoke-test"
   },
-  "overrides": { "glob": "14.0.4", "minimatch": "11.0.5" },
+  "overrides": {
+    "glob": "14.0.4",
+    "minimatch": "11.0.5"
+  },
   "devDependencies": {
-    "@electron/packager": "20.3.0",
     "electron": "45.2.3",
+    "electron-builder": "26.18.0",
+    "esbuild": "0.28.2",
     "tar": "7.5.22"
   }
 }

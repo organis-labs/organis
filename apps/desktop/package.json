@@ -1,9 +1,12 @@
 {
   "name": "organis",
   "productName": "Organis",
-  "version": "0.1.0-dev.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "main": "main.cjs",
   "description": "Organis desktop bootstrap",
-  "author": "Organis Labs"
+  "author": "Organis Labs",
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  }
 }

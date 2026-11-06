@@ -1,7 +1,9 @@
 {
   "name": "@organis/cli",
-  "version": "0.1.0-dev.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "type": "module",
-  "bin": { "organis": "src/main.mjs" }
+  "bin": {
+    "organis": "src/main.mjs"
+  }
 }

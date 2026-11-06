@@ -7,6 +7,7 @@ import { build as buildDesktop } from 'electron-builder';
 import { build as bundle } from 'esbuild';
 import { create as tar } from 'tar';
 import builderConfig from '../electron-builder.config.cjs';
+import { signMac } from './mac-sign.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(root);
@@ -95,6 +96,7 @@ await buildDesktop({
     forceCodeSigning: platform === 'darwin',
     mac: {
       ...builderConfig.mac,
+      sign: options => signMac(options),
       identity: process.env.ORGANIS_MAC_SIGNING_IDENTITY?.replace(/^Developer ID Application:\s*/, ''),
       notarize: platform === 'darwin' && Boolean(process.env.ORGANIS_NOTARY_PROFILE)
     }

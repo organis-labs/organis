@@ -58,8 +58,8 @@ export async function resolveCodex({ executable, env = process.env, platform = p
 }
 
 // No shell, terminal scraping, credential file access, or persistent session.
-// Dependency injection is limited to the process launcher/resolver for tests.
-export function createCodexChecker({ launch = spawn, resolve = resolveCodex, timeoutMs = 15000, closeMs = 2000 } = {}) {
+// Injectable process dependencies and platform keep protocol tests portable.
+export function createCodexChecker({ launch = spawn, resolve = resolveCodex, timeoutMs = 15000, closeMs = 2000, platform = process.platform } = {}) {
   return async function check({ executable, signal } = {}) {
     let directory;
     let connection;
@@ -91,7 +91,7 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
         throw fault('CODEX_AUTH_UNKNOWN');
       }
       let sandbox = 'not-checked';
-      if (process.platform === 'win32') {
+      if (platform === 'win32') {
         const readiness = await connection.request('windowsSandbox/readiness', {});
         if (!['ready', 'notConfigured', 'updateRequired'].includes(readiness?.status)) throw fault('CODEX_PROTOCOL_ERROR');
         sandbox = readiness.status;

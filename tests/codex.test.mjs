@@ -68,6 +68,14 @@ test('timeout and cancellation close only owned check processes', async () => {
     for (const child of children) assert.ok(child.exitCode !== null || child.signalCode !== null);
   }
 });
+test('unconfigured Windows sandbox is actionable on every native test runner', async () => {
+  const { check, children } = checker('sandbox-missing', { platform: 'win32' });
+  const result = await check();
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'CODEX_SANDBOX_REQUIRED');
+  assert.equal(result.sandbox, 'notConfigured');
+  for (const child of children) assert.equal(child.exitCode, 0);
+});
 test('pre-cancelled check never launches a process', async () => {
   const { check, children } = checker('ready');
   const result = await check({ signal: AbortSignal.abort() });

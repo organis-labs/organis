@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="style.css">
   <script src="renderer.js" defer></script>
   <script src="execution.js" defer></script>
+  <script src="agents.js" defer></script>
 </head>
 <body>
   <main>
@@ -17,7 +18,19 @@
     <p class="intro">A home for your agents.</p>
     <section aria-label="Development status">
       <span class="dot" aria-hidden="true"></span>
-      <div><h2>Local execution foundation</h2><p>Run a deterministic test task and inspect its saved progress. Claude and Codex connections are coming next.</p></div>
+      <div><h2>Local execution foundation</h2><p>Run a deterministic test task and inspect its saved progress. You can also check your Codex connection.</p></div>
+    </section>
+    <section class="execution" aria-labelledby="codex-heading">
+      <div>
+        <h2 id="codex-heading">Connect Codex</h2>
+        <p>Check your installed Codex CLI and its sign-in status. This does not start a task. Real agent execution is coming next.</p>
+        <div class="update-actions">
+          <button id="check-codex" type="button">Check connection</button>
+          <button id="choose-codex" type="button">Choose executable</button>
+        </div>
+        <p id="codex-path">Use Codex from this device’s PATH, or choose its executable.</p>
+        <p id="codex-status" role="status" aria-live="polite">Not checked. Sign in through Codex in your terminal.</p>
+      </div>
     </section>
     <section class="execution" aria-labelledby="execution-heading">
       <div>

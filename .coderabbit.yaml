@@ -7,8 +7,9 @@ reviews:
       instructions: |
         Use AGENTS.md, README.md and the mapped domain documents as context.
         Distinguish implemented behavior from roadmap proposals and contract-only
-        entities. M1 runs only a bundled fixture; real agents, providers, remote
-        hosts and interactive approvals are later milestones. Report concrete
+        entities. M1 runs only a bundled fixture; R03 checks an installed Codex
+        connection but does not start agent tasks. Real agent execution, providers,
+        remote hosts and interactive approvals are later milestones. Report concrete
         regressions with a trigger and impact, including contradictions between
         the code and its documented contract.
     - path: "packages/runtime/**"
@@ -46,3 +47,7 @@ knowledge_base:
         applyTo: "packages/runtime/**, apps/cli/**, apps/desktop/**, scripts/**, tests/**"
       - files: "docs/roadmap.md"
         applyTo: "**/*"
+      - files: "docs/specs/codex-connection-check.md"
+        applyTo: "packages/runtime/src/codex.mjs, apps/cli/**, apps/desktop/**, tests/**"
+      - files: "docs/decisions/first-agent-adapter.md"
+        applyTo: "packages/runtime/src/codex.mjs, apps/cli/**, apps/desktop/**, tests/**"

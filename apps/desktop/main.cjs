@@ -3,6 +3,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createUpdateController } = require('./updates.cjs');
 const { createExecutionController } = require('./execution.cjs');
+const { createAgentController } = require('./agents.cjs');
 const { mkdtempSync, mkdirSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 
@@ -12,6 +13,7 @@ let smokeTimer;
 let mainWindow;
 let updates;
 let execution;
+let agents;
 let quitting = false;
 const smokeRoot = smoke ? mkdtempSync(path.join(tmpdir(), 'organis-desktop-smoke-')) : null;
 if (smoke) {
@@ -21,7 +23,7 @@ if (smoke) {
 }
 async function finishSmoke(code) {
   clearTimeout(smokeTimer);
-  try { await execution?.close(); }
+  try { await agents?.close(); await execution?.close(); }
   catch (error) { console.error(error.message); code = 1; }
   updates?.dispose();
   // Chromium profile handles can remain open until app exit on Windows.
@@ -54,6 +56,16 @@ function createWindow() {
       try {
         const state = await window.webContents.executeJavaScript('({title:document.querySelector("h1").textContent, requireType:typeof require, processType:typeof process})');
         if (state.title !== 'Organis' || state.requireType !== 'undefined' || state.processType !== 'undefined') throw new Error('Unexpected renderer content or Node exposure');
+        await window.webContents.executeJavaScript(`(async () => {
+          document.querySelector('#check-codex').click();
+          const deadline = Date.now() + 10000;
+          while (document.querySelector('#check-codex').disabled) {
+            if (Date.now() > deadline) throw new Error('Codex check did not finish');
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          if (!document.querySelector('#codex-status').textContent.includes('Select an absolute path')) throw new Error('Missing Codex error not shown');
+        })()`);
+        console.log('ORGANIS_DESKTOP_CODEX_CHECK_SMOKE_OK');
         if (unavailableSmoke) {
           await window.webContents.executeJavaScript(`(async () => {
             const deadline = Date.now() + 10000;
@@ -124,6 +136,13 @@ function createWindow() {
           const completed = runs.find(run => run.state === 'completed');
           const events = await window.organisExecution.events(completed.id);
           if (!events.length || !runs.some(run => run.state === 'cancelled')) throw new Error('Missing persisted execution evidence');
+          const panel = document.querySelector('#run-events').closest('details');
+          panel.open = false;
+          document.querySelector('.run-link').click();
+          await wait(() => panel.open && document.querySelector('#run-events').textContent.includes('run_created'));
+          panel.open = false;
+          await new Promise(resolve => setTimeout(resolve, 700));
+          if (panel.open) throw new Error('Polling reopened a manually closed events panel');
           return true;
         })()`);
         console.log('ORGANIS_DESKTOP_EXECUTION_SMOKE_OK');
@@ -135,6 +154,8 @@ function createWindow() {
   window.loadFile(path.join(__dirname, 'index.html'));
 }
 app.whenReady().then(async () => {
+  agents = await createAgentController({ app, trustedSender, getWindow: () => mainWindow,
+    smokeExecutable: smoke ? path.join(smokeRoot, 'codex-missing') : undefined });
   execution = await createExecutionController({
     app, trustedSender, getWindow: () => mainWindow,
     stateDir: smoke ? path.join(smokeRoot, 'state') : undefined,
@@ -168,7 +189,7 @@ app.on('before-quit', event => {
   if (!quitting && execution) {
     event.preventDefault();
     quitting = true;
-    execution.close().then(() => app.quit()).catch(error => {
+    Promise.all([agents?.close(), execution.close()]).then(() => app.quit()).catch(error => {
       console.error(`Execution shutdown failed: ${error.message}`);
       app.exit(1);
     });

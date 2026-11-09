@@ -16,3 +16,7 @@ bootstrap applications, not a complete agent runtime.
 
 Read README.md for the current layout and commands. More specific guidance applies
 within its directory. Preserve unrelated work and use synthetic test data.
+
+Read docs/roadmap.md before planning product work. It separates implemented
+features from proposed milestones and unresolved decisions. Keep its status and
+acceptance evidence current; a roadmap entry is not proof of implementation.

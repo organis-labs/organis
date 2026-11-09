@@ -4,6 +4,9 @@ Desktop and CLI bootstrap for a general-purpose agent workspace. This initial
 version opens a local desktop window and reports CLI version/status. Agent
 execution, provider connections, synchronization, and approvals are not implemented.
 
+See the [product roadmap](docs/roadmap.md) for the current baseline, proposed
+milestones, dependencies, acceptance criteria and next development work.
+
 ## Development
 
 Use Node **24.22.2** with its bundled npm.

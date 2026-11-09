@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile, chmod } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,7 +98,7 @@ test('discovery ignores relative PATH entries and rejects missing paths and Wind
     const executable = path.join(directory, 'codex');
     await writeFile(executable, '#!/bin/sh\nexit 0\n');
     await chmod(executable, 0o755);
-    assert.equal(await resolveCodex({ env: { PATH: directory } }), executable);
+    assert.equal(await resolveCodex({ env: { PATH: directory } }), await realpath(executable));
   }
 });
 test('CLI connection errors are one JSON record and unknown arguments fail before discovery', () => {

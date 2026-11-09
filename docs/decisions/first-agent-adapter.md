@@ -72,6 +72,13 @@ or make model requests.
 
 ## R04 implementation gates
 
+The [workspace and permission contract](../specs/workspace-permissions.md) defines
+the R04 project/file registry, native OS sandbox behavior and four approval modes:
+manual, plan preapproval, automatic except risky actions, and explicit full access.
+It is a design contract, not a change to R03 capabilities. Validate each mode's
+authority and enforcement against the selected execution protocol version; the
+0.164.0 connection check does not establish permission-profile or task support.
+
 M1 releases a workspace only after termination is verified. A Codex terminal turn
 status alone does not prove all tool processes or external integrations stopped.
 Version 0.164.0 exposes background-terminal list/terminate/clean methods only in

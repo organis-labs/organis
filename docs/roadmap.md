@@ -1,6 +1,6 @@
 # Organis product roadmap
 
-Updated: 2026-11-09. Status: M0 distribution baseline, M1 fixture implementation,
+Updated: 2026-11-10. Status: M0 distribution baseline, M1 fixture implementation,
 and R03 Codex feasibility/connection checks;
 later milestones remain a reviewable planning draft. Future milestones below
 are proposed sequencing, not implemented features, release promises, or approval
@@ -171,6 +171,14 @@ authentication, streaming, cancellation, approval,
 resume and exit semantics against current upstream documentation at implementation
 time. Do not assume identical capabilities or automate interactive terminal text
 as a stable protocol when an official interface exists.
+
+R04's [workspace and permission contract](specs/workspace-permissions.md) specifies
+host-native working folders, registered file/directory access and visible effective
+sandbox restrictions in both CLI and desktop. Approval modes are manual individual
+requests, bounded plan preapproval, automatic except risky actions, and explicit
+full access. Keep access boundaries separate from approval routing. This is a
+design requirement; the registry, approval engine and real execution are not yet
+implemented. Each mode must pass its enforcement gates before being offered.
 
 Deliver executable/version discovery, capability reporting, supported login handoff,
 workspace selection, real progress events and normalized results. Add a second
@@ -426,7 +434,7 @@ collaboration, then full desktop acceptance. Preserve existing work-item IDs.
 | R01 | Specify room/participant and lifecycle, ownership, event/error and persistence contracts | Reviewed state table, write/session ownership and crash/cancel/retry cases; storage decision recorded |
 | R02 | Implement local CLI execution with a deterministic fixture adapter | Headless completion, denial, cancellation and restart tests |
 | R03 | Evaluate installed Claude/Codex interfaces and authentication mode — implemented | [Codex-first decision, capability/policy note and bounded text-task evidence](decisions/first-agent-adapter.md); CLI/desktop connection check |
-| R04 | Implement the selected adapter | M2 acceptance, including failure/cancel paths |
+| R04 | Implement the selected adapter and [workspace/approval contract](specs/workspace-permissions.md) | Shared project/file permissions; four gated approval modes; M2 execution, failure/cancel and native OS enforcement evidence |
 | R05 | Specify and implement desktop room/participant flow | Fresh-install M2.5 collaboration and matching runtime state |
 | R06 | Close release coverage gaps for a genuine next release | Per-OS desktop/CLI old-to-new evidence; native Linux scope recorded |
 | R07 | Decide licensing and publish contribution expectations | Maintainer-approved license and provenance checks |
@@ -489,7 +497,7 @@ their effects. Do not implement an unresolved policy merely to finish a mileston
 | Revision limit, writer scope and participant removal | R08 design; R09 implementation | Bounded serial collaboration first; defaults and transitions need specification |
 | Private capability extraction | R11 | Inventory and provenance gate; source reuse not yet established |
 | Persistence, run ownership and local protocol | M1/M4 | Small local design first; daemon later |
-| Permission enforcement and approval scope | Real side-effecting tools | Threat model and adapter capability limits required |
+| Permission enforcement and approval scope | R04 before real side effects | [Four-mode contract defined](specs/workspace-permissions.md); protocol/backend compatibility, enforcement and recovery evidence remain required |
 | Model providers, credential storage and budget policy | M5 | Separate from CLI authentication |
 | Package trust/provenance and workflow coordination | M6 | Reviewed pinned packages first |
 | Remote topology, identity and revocation | M7 | Optional remote service; no transport selected |

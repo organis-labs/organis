@@ -13,9 +13,12 @@ account, relay, desktop application, or maintainer-operated inference service.
 Remote execution, synchronization, and mobile management are optional extensions.
 
 Start with an individual developer managing their own trusted workspaces and
-machines. The first useful release is one complete local task flow with a real
-agent adapter, a headless CLI, and a desktop client showing the same execution
-state. Team administration, a marketplace, and a hosted service are not prerequisites.
+machines. The target first useful product is a conversation room with explicitly
+joined Claude and Codex participants: Claude plans, Organis assigns implementation
+to Codex, and Claude reviews the recorded result. Prove the fixture and one-agent
+paths before building this two-agent flow. A headless CLI and desktop client use
+the same execution state. Team administration, a marketplace, and a hosted service
+are not prerequisites.
 The initial maintainer can deliver this alone; contribution infrastructure grows
 when actual contributors need it, not when a star-count threshold is reached.
 
@@ -61,6 +64,12 @@ operations guide for actual release commands and host configuration.
 
 ## Milestone order
 
+The room-participant direction comes from the maintainer's planning discussion.
+A bounded Claude Fable review on 2026-11-09 recommended pulling minimal collaboration
+ahead of general skill workflows and adding a parallel extraction track. This
+revision adopts those sequencing changes. The review covered a supplied proposal,
+not an audit of private source code or a provider-policy approval.
+
 Dates and version numbers are intentionally unassigned. A milestone closes only
 when its acceptance evidence is linked. Status starts as `planned` unless shown.
 
@@ -69,7 +78,8 @@ when its acceptance evidence is linked. Status starts as `planned` unless shown.
 | M0 | Distribution foundation — implemented with scoped verification | None | Desktop and CLI can be installed and updated within documented coverage |
 | M1 | Local execution contracts and persistence | M0 | One bounded local run has durable identity, state, events and safe cancellation |
 | M2 | First supported agent-tool integration | M1 | A real agent completes a scoped task through CLI without maintainer configuration |
-| M3 | Desktop onboarding and task management | M2 | A fresh user completes and observes that same flow in desktop |
+| M2.5 | Room participants and bounded collaboration | M1, M2, routing/context spec | Claude plan -> Codex implementation -> Claude review, all tracked by Organis |
+| M3 | Desktop onboarding and room management | M2.5 for full acceptance | A fresh user joins agents to a room and observes the same collaboration state |
 | M4 | Persistent local host and recovery | M1–M3 | Runs survive client disconnects with one coordinator and reconciled state |
 | M5 | Optional provider-backed agent loop | M1, M2 contracts | Organis can run a bounded tool loop through a user-selected model endpoint |
 | M6 | Reusable skills and bounded workflows | M2; M4 for durable workflows | Versioned packages compose work without expanding permission silently |
@@ -81,11 +91,19 @@ when its acceptance evidence is linked. Status starts as `planned` unless shown.
 M5 and M6 can proceed independently once their contracts exist. M8 is not required
 for remote execution or mobile approval. M10 hardening begins with M1; stable
 release scope need not include every optional milestone.
+M3 UI prototyping can start earlier, but cannot substitute for M2.5 acceptance.
+M2.5 requires neither a daemon nor a reusable workflow engine. The extraction track
+below starts with inventory alongside M1; implementation waits for its review gates.
 
 ## M1 — Local execution contracts and persistence
 
-Define workspace, task, run, attempt, agent capability, execution host, event,
-artifact and approval concepts before exposing them through separate clients.
+Define room, participant, workspace, task, run, attempt, agent capability, execution
+host, event, artifact and approval concepts before exposing them through clients.
+Separate room messages from execution events. A registered agent is a connection
+capability; a participant is a room-local role with a provider session reference.
+Organis owns execution records, assignment and cancellation propagation. The
+provider owns its native session semantics; neither chat text nor a session handle
+alone is proof that a task finished.
 Choose a local storage approach in a short design decision; do not scatter
 unversioned JSON formats across clients. Keep the initial implementation small.
 
@@ -94,6 +112,11 @@ CLI output, scoped process launch and process-tree cancellation. Draft states
 include queued, running, awaiting approval, cancelling, cancelled, interrupted,
 failed and completed; freeze exact states and transitions in the first spec.
 Classify retryable failures without automatically replaying side effects.
+Specify write ownership, session/process ownership and approval scope before real
+execution. No permission-bypass defaults and no worktree-as-sandbox claims. Reject
+unsupported enforcement requirements instead of silently weakening the requested
+scope. Start with serial writes per shared checkout; parallel conflicting writers
+are out of the first slice.
 
 Acceptance:
 - A deterministic fixture starts and finishes through the headless CLI; persisted
@@ -107,8 +130,16 @@ Acceptance:
 
 ## M2 — First supported agent-tool integration
 
+Global connection setup discovers an installed executable, version, supported
+features and authentication status through supported interfaces. Registration does
+not join a room or start a task. Use the user's unmodified CLI and provider-owned
+authentication; do not import credential caches into Organis. Confirm and document
+the selected integration mode's current provider requirements before implementing
+it as a distributed product feature.
+
 Select the first adapter after a bounded feasibility check of supported interfaces
-for Codex CLI and Claude CLI. Selection is still open; neither adapter is currently
+for Codex CLI and Claude CLI. This selects which of the two to implement first,
+not a replacement for the target two-participant flow. Selection is still open; neither adapter is currently
 implemented. Verify supported authentication, streaming, cancellation, approval,
 resume and exit semantics against current upstream documentation at implementation
 time. Do not assume identical capabilities or automate interactive terminal text
@@ -119,6 +150,14 @@ workspace selection, real progress events and normalized results. Add a second
 adapter only after the first flow works; use it to validate the contract without
 hiding provider-specific limitations.
 
+Reference implementation, not a dependency or policy precedent: Orca at
+`4fc4d792be0e1bf7c4ffba2a4da106cfaa523812` points its Claude SDK integration at
+the installed user CLI and launches Codex through `app-server`. See
+[Claude launch](https://github.com/stablyai/orca/blob/4fc4d792be0e1bf7c4ffba2a4da106cfaa523812/src/main/claude/structured/launch/claude-structured-launch-resolution.ts)
+and [Codex launch](https://github.com/stablyai/orca/blob/4fc4d792be0e1bf7c4ffba2a4da106cfaa523812/src/main/codex/structured/launch/codex-structured-launch-resolution.ts).
+These are feasibility candidates, not final adapter choices. Do not copy account
+switching, credential handling or permission bypass behavior as part of this slice.
+
 Acceptance: on a fresh supported machine, a user can authenticate through the
 tool's supported flow and run a bounded synthetic task. Missing executable,
 unsupported version, expired authentication, denied approval, cancellation and
@@ -126,9 +165,55 @@ partial failure all produce actionable results. A tool with no enforceable scope
 must disclose that limitation and cannot be advertised as sandboxed. Authentication
 caches remain owned by the tool; no maintainer credentials are required.
 
-## M3 — Desktop onboarding and task management
+## M2.5 — Room participants and bounded collaboration
 
-Build workspace selection, agent discovery/setup, a task composer, execution list,
+Connection setup and room membership are distinct. Users join connected agents to
+a room and assign roles; there is no single app-wide agent that replaces the rest.
+Agent, model, role, host and tool access remain separately represented. A team
+profile may prefill a room's participants and roles after explicit user selection;
+it does not grant permissions or start work by itself.
+
+Proposed minimal rules, to freeze in the routing/context spec before implementation:
+- One lead participant per room handles unaddressed user requests. `@participant`
+  targets that participant. Missing/ambiguous targets fail visibly; there is no
+  automatic fan-out to every registered agent.
+- Other participants receive bounded assignment briefs and referenced artifacts,
+  not the entire raw transcript by default. Direct-message content is not
+  automatically forwarded to the lead. Define visible sharing controls before
+  widening context; context is data, never authority to grant permissions.
+- The lead proposes assignments through an Organis-controlled interface. Organis
+  records requester, assignee, room, scope, attempt and artifact relationships.
+  Untracked sibling-agent spawning is not the supported delegation mechanism.
+  Provider-native subagents require an explicit capability/visibility policy.
+- Start with one active task per participant and one writer per shared checkout.
+  Lead changes apply between assignments. Participant removal during a task must
+  explicitly cancel it or retain it until completion; it cannot orphan execution.
+- Permission grants apply to scoped room/task actions, not global trust in an
+  agent. Approval binds to the concrete action; changing the action invalidates it.
+- Review produces a separate artifact and can request bounded revisions. A user-
+  visible revision limit is required; the default and room/task override policy
+  remain undecided. Exceeding it stops for user input rather than looping forever.
+- An image generator is a tool/provider capability, not necessarily a CLI agent.
+  Notion, Slack and Figma-style connectors are tools with separate grants. Their
+  detailed implementation is later work, not a prerequisite for this code-only slice.
+
+Acceptance: user request -> Claude plan artifact -> visible Organis assignment ->
+Codex diff and actual test execution record -> Claude review artifact -> final
+execution outcome. Review approval alone cannot mark the work verified. Record
+test commands, exit status, outputs and the source revision tested; preserve failed,
+cancelled, blocked and interrupted outcomes separately.
+
+Exercise duplicate delivery, participant crash, refusal, expired approval, denied
+scope and revision-limit exhaustion. Joining/registering another agent must not
+start work or expose room history. Cancelling the parent reconciles owned child
+work; verify actual termination before freeing resources. An adapter unable to
+enforce a requested boundary must reject that configuration. Test the headless
+path before claiming collaboration requires a GUI. Remote execution is deferred.
+
+## M3 — Desktop onboarding and room management
+
+Build global agent connection setup, room creation, participant/lead selection,
+workspace selection, a task composer, execution list,
 detail/event view, output/artifact view and explicit cancellation. Display model
 and host choices only where supported. Desktop consumes runtime contracts rather
 than maintaining an independent task state machine.
@@ -137,7 +222,7 @@ Provide readable empty/loading/error states, keyboard navigation and accessible
 status announcements. Show the exact action and scope for an approval, including
 what denial does. Output or retrieved content must never become approval authority.
 
-Acceptance: a fresh install completes the M2 flow without private configuration;
+Acceptance: a fresh install completes the M2.5 flow without private configuration;
 CLI and desktop agree about the same run. Closing/reopening the client has a
 documented outcome. Repeated clicks do not start duplicate attempts; stale approval
 views cannot authorize changed actions. The first-use flow includes recovery from
@@ -174,6 +259,10 @@ unapproved side effects. Local endpoints work without a hosted-provider account.
 Do not claim prompt instructions alone form a security boundary.
 
 ## M6 — Skills, packages and workflows
+
+Minimal room routing and plan/code/review already belong to M2.5. This milestone
+generalizes proven behavior into reusable team profiles, skill packs and workflows;
+do not make the first collaboration flow depend on a generic workflow framework.
 
 Keep execution and permission enforcement in product code. Independently versioned
 skill packages consume a product-owned schema and validation contract. Start with
@@ -251,20 +340,56 @@ and accessibility are covered. Mobile and desktop display the same decision/resu
 ## Next work queue
 
 These are work-item identifiers, not existing GitHub issue numbers. Recommended
-order is local-contract spec, vertical CLI slice, first adapter, then desktop.
+order is integration/room contracts, fixture, one real participant, two-agent
+collaboration, then full desktop acceptance. Preserve existing work-item IDs.
 
 | ID | Deliverable | Completion evidence |
 | --- | --- | --- |
-| R01 | Specify lifecycle, ownership, event/error and persistence contracts | Reviewed state table and crash/cancel/retry cases; storage decision recorded |
+| R01 | Specify room/participant and lifecycle, ownership, event/error and persistence contracts | Reviewed state table, write/session ownership and crash/cancel/retry cases; storage decision recorded |
 | R02 | Implement local CLI execution with a deterministic fixture adapter | Headless completion, denial, cancellation and restart tests |
-| R03 | Evaluate first real adapter's supported interface | Capability matrix and authenticated bounded-task evidence; selection decision |
+| R03 | Evaluate installed Claude/Codex interfaces and authentication mode | Capability/policy note, supported versions, bounded-task evidence; first-adapter decision |
 | R04 | Implement the selected adapter | M2 acceptance, including failure/cancel paths |
-| R05 | Specify and implement desktop first-task flow | Fresh-install task and matching runtime state |
+| R05 | Specify and implement desktop room/participant flow | Fresh-install M2.5 collaboration and matching runtime state |
 | R06 | Close release coverage gaps for a genuine next release | Per-OS desktop/CLI old-to-new evidence; native Linux scope recorded |
 | R07 | Decide licensing and publish contribution expectations | Maintainer-approved license and provenance checks |
+| R08 | Specify message routing, context sharing, approvals and revision bounds | Explicit target/lead/privacy rules and negative cases before room history is sent |
+| R09 | Add second real participant and plan/code/review flow | M2.5 artifacts, actual test records, bounded revisions, failure/cancel acceptance |
+| R10 | Inventory private predecessor capabilities | Sanitized extraction matrix with provenance and unknowns; no bulk import or cutover |
+| R11 | Extract one reviewed reusable capability | Synthetic tests, fresh-machine acceptance and preserved original behavior |
 
-R03 research and R07 can run alongside R01. Adapter implementation depends on
-R01/R02 and its supported-interface evidence. No issues are created by this file.
+R03, R07, R08 and inventory-only R10 can run alongside R01. R04 depends on R01/R02
+and R03; R08 must be resolved before forwarding room context to a real participant.
+R09 follows R04/R08 and proves the second adapter; R05 full acceptance follows R09.
+R11 follows the extraction gates below. No issues are created by this file.
+
+## Parallel extraction track — preserve the working predecessors
+
+The maintainer's private operations and configuration projects are candidate
+predecessors, not product dependencies. Their code was not audited for this revision. Do not claim that their
+features are portable, licensed for redistribution or already migrated.
+
+| Candidate area | Potential destination | Must remain private / unresolved |
+| --- | --- | --- |
+| Execution, approval and host-management behavior | Runtime contracts; later daemon/remote adapters | Host service configuration, device identities, authorization state |
+| Role, instruction and skill configuration | User-selected room profiles and versioned packs | Personal instructions, private skills, account and machine-specific values |
+| Operational lessons and failure cases | Synthetic regression cases and portable design notes | Transcripts, credentials, raw operational logs and third-party private content |
+
+For each candidate, record capability, source revision, dependencies, ownership/
+license, sensitive-data exposure, extract-versus-rewrite decision, destination and
+acceptance evidence. Keep the detailed source inventory private; publish only a
+sanitized design and reviewed code in clean product history.
+
+Sequence: inventory -> provenance/license/private-data review -> minimal extraction
+or rewrite -> synthetic tests -> side-by-side behavior comparison -> explicit cutover.
+The original projects and services continue unchanged until separately authorized
+cutover with a recovery path. Do not bulk-import repositories, synchronize personal
+configuration by default, or copy secret stores. Side-by-side tests must not run
+both systems against the same real side-effecting task. Use fixtures or separate
+owned resources; preserve the original execution owner.
+
+Prioritize only capabilities needed by R01–R09. Remote-host and synchronization
+code can wait for M7/M8. Passing on the maintainer's machine is insufficient:
+extracted functionality must work with synthetic configuration on a fresh setup.
 
 ## Decisions still needed
 
@@ -276,6 +401,10 @@ their effects. Do not implement an unresolved policy merely to finish a mileston
 | --- | --- | --- |
 | Product license and redistribution policy | External contribution/reuse expectations | Open; do not infer a license |
 | First adapter and supported versions | R04 | Compare supported interfaces in R03 |
+| Installed CLI integration mode and provider requirements | R04 | User-owned unmodified CLI is the candidate; verify exact mode, not Orca precedent |
+| Lead handoff, mention routing and context visibility | R08 / M2.5 | One room lead and bounded briefs proposed; no implicit transcript broadcast |
+| Revision limit, writer scope and participant removal | R08 design; R09 implementation | Bounded serial collaboration first; defaults and transitions need specification |
+| Private capability extraction | R11 | Inventory and provenance gate; source reuse not yet established |
 | Persistence, run ownership and local protocol | M1/M4 | Small local design first; daemon later |
 | Permission enforcement and approval scope | Real side-effecting tools | Threat model and adapter capability limits required |
 | Model providers, credential storage and budget policy | M5 | Separate from CLI authentication |

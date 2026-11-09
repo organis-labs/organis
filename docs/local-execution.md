@@ -134,6 +134,7 @@ approval states `pending`, `approved`, `rejected`, `expired` are contract-only.
   unknown. Ownership stays retained even if a recorded pid is absent or dead. M1 has no
   automatic reset or force-release command for this case; operator investigation is required.
   Removing state is not evidence that the old process tree stopped.
+  This also applies if the child exits before reporting readiness while its owner stays alive.
 - An observed child exit whose descendants cannot be confirmed stopped becomes
   `interrupted` with `TERMINATION_UNVERIFIED`, also retaining workspace ownership.
 - Recovered pids are **never killed**. A pid recorded by a dead owner may have been reused by
@@ -169,6 +170,8 @@ dead, the run is interrupted with retained ownership instead of releasing the wo
 - stdio is `ignore`; the only channel is a private IPC pipe carrying `ready` and `result`
   messages. The runtime accepts only those two shapes, ignores everything else and stores no
   arbitrary output.
+- On macOS, the allowlist also permits `__CF_USER_TEXT_ENCODING`, which CoreFoundation
+  can create during initialization. It is not copied from the parent's environment.
 
 ## Cancellation
 
@@ -180,6 +183,8 @@ dead, the run is interrupted with retained ownership instead of releasing the wo
   `ChildProcess` handle and waits up to 5 s. The fixed fixture owns its grandchild's handle;
   IPC disconnect also stops that grandchild. A run becomes `cancelled` only after identities
   have been received and both exits are verified, including cancellation during startup.
+  During startup it first allows up to 10 s for readiness and resends cancellation when ready
+  arrives, avoiding a lost IPC request during module loading.
 - If death cannot be verified, the run stays `cancelling` with `errorCode: CANCEL_UNVERIFIED`
   and a `cancel_unverified` event, and the owner retries at least 2 s later.
 - No platform invokes `taskkill` or signals recorded pids or process groups. If cooperative

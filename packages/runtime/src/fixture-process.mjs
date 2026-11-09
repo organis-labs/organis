@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const WIN32_LIBUV_ENV = ['HOMEDRIVE', 'HOMEPATH', 'LOGONSERVER', 'PATH', 'SYSTEMDRIVE', 'TEMP',
   'USERDOMAIN', 'USERNAME', 'USERPROFILE', 'WINDIR'];
 const ALLOWED_ENV = ['ORGANIS_FIXTURE', 'ELECTRON_RUN_AS_NODE', 'SystemRoot',
+  ...(process.platform === 'darwin' ? ['__CF_USER_TEXT_ENCODING'] : []),
   ...(process.platform === 'win32' ? WIN32_LIBUV_ENV : [])];
 
 // Windows can also signal the child. Cancellation is recorded by the owner first.
@@ -20,6 +21,7 @@ function argOf(name, fallback) {
 function runGrandchild() {
   setInterval(() => {}, 1000);
   process.on('disconnect', () => process.exit(0));
+  if (!process.connected) process.exit(0);
 }
 
 function send(message) {
@@ -64,6 +66,7 @@ async function runChild() {
   };
   process.on('disconnect', cancelled);
   process.on('message', message => { if (message?.type === 'cancel') cancelled(); });
+  if (!process.connected) { await cancelled(); return; }
 
   await send({ type: 'ready', pid: process.pid, grandchildPid: grandchild.pid ?? null, envKeys, cwd: process.cwd() });
   if (ending) return;

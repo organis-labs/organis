@@ -28,6 +28,9 @@ test('cancellation during startup includes identities delivered after the reques
   assert.equal(final.state, 'cancelled');
   const ready = runtime.events(run.id).find(event => event.type === 'fixture_ready');
   assert.ok(ready, 'The spawned tree must report identities before cancellation is verified');
+  // Windows may keep the exited process object visible briefly after the exit event.
+  const reapedBy = Date.now() + 1000;
+  while (pidAlive(ready.pid) && Date.now() < reapedBy) await delay(10);
   assert.equal(pidAlive(ready.pid), false);
   assert.equal(pidAlive(ready.grandchildPid), false);
 });

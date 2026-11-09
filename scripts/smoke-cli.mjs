@@ -5,7 +5,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
-export async function smokeCLI(executable, entry) {
+export async function smokeCLI(executable, entry, { earlyInterrupt = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'organis-cli-smoke-'));
   const workspace = join(root, 'workspace with spaces');
   mkdirSync(workspace);
@@ -17,7 +17,7 @@ export async function smokeCLI(executable, entry) {
     const result = spawnSync(executable, [entry, 'run', ...args, '--state-dir', join(root, 'state'), '--json'], {
       env, encoding: 'utf8', timeout: 20000, windowsHide: true
     });
-    if (result.error || result.status !== expected) throw new Error(`CLI execution smoke failed: ${result.error?.message ?? result.stderr}`);
+    if (result.error || result.status !== expected) throw new Error(`CLI execution smoke failed: ${result.error?.message ?? result.stderr} ${result.stdout}`);
     return result.stdout.trim().split('\n').map(line => JSON.parse(line));
   };
   try {
@@ -44,11 +44,12 @@ export async function smokeCLI(executable, entry) {
     const closed = new Promise((resolveExit, reject) => { child.once('error', reject); child.once('close', resolveExit); });
     let timer;
     try {
+      if (earlyInterrupt) child.send({ type: 'organis:interrupt' });
       const deadline = Date.now() + 10000;
       while (!stdout.includes('\n') && child.exitCode === null && Date.now() < deadline) await delay(25);
       if (!stdout.includes('\n')) throw new Error(`CLI did not acknowledge wait fixture: ${stderr}`);
       // Same private control message used by the standalone launcher's Ctrl+C handler.
-      child.send({ type: 'organis:interrupt' });
+      if (!earlyInterrupt) child.send({ type: 'organis:interrupt' });
       const code = await Promise.race([closed, new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error('CLI cancellation timed out')), 15000);
       })]);

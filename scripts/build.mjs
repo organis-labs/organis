@@ -84,7 +84,7 @@ if (platform === 'win32') {
 }
 const cliResult = JSON.parse(run(join(cliDir, nodeName), [join(cliDir, 'bootstrap.cjs'), 'status', '--json']));
 if (cliResult.version !== meta.version || cliResult.platform !== platform || cliResult.arch !== arch) throw new Error('Packaged CLI smoke failed');
-const cliExecution = await smokeCLI(join(cliDir, nodeName), join(cliDir, 'bootstrap.cjs'));
+const cliExecution = await smokeCLI(join(cliDir, nodeName), join(cliDir, 'bootstrap.cjs'), { earlyInterrupt: true });
 // The optional profile references credentials already in this host's keychain.
 // Never export keys or copy credentials into a checkout or build artifact.
 if (!verificationOnly && platform === 'darwin' && process.env.ORGANIS_NOTARY_PROFILE) {

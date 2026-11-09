@@ -42,11 +42,19 @@ async function launch(root = __dirname, args = process.argv.slice(2)) {
   });
   // A private IPC channel forwards terminal control without Windows kill()
   // force-termination or duplicate foreground-group signals on Unix.
+  let controlReady = false;
+  let pendingInterrupts = 0;
   const interrupt = (signal = 'SIGINT') => {
     if (args[0] === 'run') {
+      if (!controlReady) { pendingInterrupts = Math.min(2, pendingInterrupts + 1); return; }
       if (child.connected) child.send({ type: 'organis:interrupt' }, () => {});
     } else child.kill(signal);
   };
+  child.on('message', message => {
+    if (message?.type !== 'organis:control-ready' || controlReady) return;
+    controlReady = true;
+    while (pendingInterrupts > 0) { pendingInterrupts--; interrupt(); }
+  });
   const parentControl = message => { if (message?.type === 'organis:interrupt') interrupt(); };
   const sigint = () => interrupt('SIGINT');
   const sigterm = () => interrupt('SIGTERM');

@@ -267,6 +267,7 @@ test('e. cancel stays cancelling until owned processes are verified dead', OPTIO
   assert.equal((await rt.cancel(run.id, { commandId })).state, 'cancelling');
   const final = await rt.wait(run.id, { timeoutMs: 20000 });
   assert.equal(final.state, 'cancelled');
+  await waitFor(() => !pidAlive(ready.pid), { timeoutMs: 1000, label: 'exited process cleanup' });
   assert.equal(pidAlive(ready.pid), false);
   assert.equal(pidAlive(ready.grandchildPid), false);
   assert.equal(rt.events(run.id).filter(event => event.type === 'cancel_requested').length, 1);
@@ -473,7 +474,7 @@ test('k. credentials never reach the fixture or the state files', OPTIONS, async
   try {
     id = (await rt.startFixture({ workspace: ws, durationMs: 100 })).run.id;
     const done = await rt.wait(id);
-    assert.equal(done.state, 'completed', done.errorCode);
+    assert.equal(done.state, 'completed', JSON.stringify({ errorCode: done.errorCode, ready: readyEvent(rt, id) }));
   } finally {
     for (const [name, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[name]; else process.env[name] = value;
@@ -482,6 +483,7 @@ test('k. credentials never reach the fixture or the state files', OPTIONS, async
   const { envKeys } = readyEvent(rt, id);
   assert.ok(envKeys.length > 0);
   const allowed = new Set(['organis_fixture', 'electron_run_as_node', 'systemroot']);
+  if (process.platform === 'darwin') allowed.add('__cf_user_text_encoding');
   if (process.platform === 'win32') {
     // libuv re-adds these from the parent on Windows; see fixture-process.mjs.
     for (const name of ['homedrive', 'homepath', 'logonserver', 'path', 'systemdrive', 'temp', 'userdomain',

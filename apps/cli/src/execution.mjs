@@ -51,6 +51,7 @@ export async function executionCommand(args) {
   process.on('SIGTERM', interrupt);
   process.on('message', parentControl);
   process.on('disconnect', interrupt);
+  if (process.connected) process.send({ type: 'organis:control-ready' }, () => {});
   try {
     if (command === 'fixture') {
       const accepted = await runtime.startFixture({

@@ -38,6 +38,11 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node node_modules/electron/install.js
       - run: node node_modules/esbuild/install.js
+      - name: Configure Chromium sandbox on the disposable Linux runner
+        if: runner.os == 'Linux'
+        run: |
+          sudo install -o root -g root -m 4755 node_modules/electron/dist/chrome-sandbox /usr/local/sbin/organis-test-sandbox
+          echo "CHROME_DEVEL_SANDBOX=/usr/local/sbin/organis-test-sandbox" >> "$GITHUB_ENV"
       - name: Runtime, CLI and updater tests
         run: npm test
       - name: Verify packaged desktop and standalone CLI

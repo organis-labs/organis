@@ -450,6 +450,11 @@ export class LocalRuntime {
           pid, grandchildPid, envKeys, cwd: typeof message.cwd === 'string' ? message.cwd : null
         });
       });
+      // ESM startup can precede the fixture's IPC listener; repeat a queued cancel
+      // once readiness proves the cooperative listener is installed.
+      if (this.#runRow(local.id)?.state === 'cancelling' && local.child.connected) {
+        local.child.send({ type: 'cancel' }, () => {});
+      }
     } else if (message.type === 'result' && typeof message.ok === 'boolean') {
       local.result = { ok: message.ok, code: RESULT_CODES.has(message.code) ? message.code : undefined };
     }
@@ -526,6 +531,8 @@ export class LocalRuntime {
       if (local.child.connected) local.child.send({ type: 'cancel' }, () => {});
     } catch { /* channel already closed */ }
     const target = { exited: local.exited, grandchildPid: () => local.grandchildPid, ready: () => Boolean(local.ready) };
+    const startupDeadline = Date.now() + 10000;
+    while (!local.ready && !local.exitInfo && Date.now() < startupDeadline) await sleep(50);
     let dead = await waitForOwnedExit(target, 1500);
     if (!dead) {
       await killOwnedTree({ child: local.child, grandchildPid: local.grandchildPid });

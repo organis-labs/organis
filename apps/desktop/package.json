@@ -1,7 +1,7 @@
 {
   "name": "organis",
   "productName": "Organis",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "private": true,
   "main": "main.cjs",
   "description": "Organis desktop bootstrap",

@@ -157,8 +157,12 @@ to map another domain document to the code it governs.
 - `scripts/build.mjs`: native packaging, smoke checks, checksums, provenance.
 - `tests`: CLI behavior checks.
 
-Release CI is manually orchestrated by private build infrastructure for an explicitly
-reviewed full source commit. Public PR verification uses disposable GitHub-hosted
+Release CI is orchestrated by private build infrastructure for an explicitly
+selected full source commit after all three main CI targets pass. The coordinator
+checks every five minutes, increases the beta version when needed, and waits for
+the version commit's CI before building and publishing. GitHub scheduling may be
+delayed; merges before publication may be combined into one release. Failed builds
+require maintainer inspection and manual retry. Public PR verification uses disposable GitHub-hosted
 runners; this repo has no self-hosted PR workflow.
 Successful complete release builds are validated and published to this repository's
 GitHub Releases by a separate publisher. The manifest records source/tool versions;

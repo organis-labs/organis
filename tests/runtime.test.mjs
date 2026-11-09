@@ -171,6 +171,8 @@ test('b. invalid requests fail before any run exists', OPTIONS, async t => {
   fs.writeFileSync(file, 'synthetic');
   const sub = path.join(stateDir, 'sub');
   fs.mkdirSync(sub);
+  const dottedSub = path.join(stateDir, '..still-inside');
+  fs.mkdirSync(dottedSub);
   const reject = (options, code) => assert.rejects(rt.startFixture(options), { code });
   await reject({ workspace: path.join(ws, 'missing') }, 'INVALID_WORKSPACE');
   await reject({ workspace: file }, 'INVALID_WORKSPACE');
@@ -184,6 +186,7 @@ test('b. invalid requests fail before any run exists', OPTIONS, async t => {
   await reject({ workspace: path.parse(os.tmpdir()).root }, 'SCOPE_DENIED');
   await reject({ workspace: stateDir }, 'SCOPE_DENIED');
   await reject({ workspace: sub }, 'SCOPE_DENIED');
+  await reject({ workspace: dottedSub }, 'SCOPE_DENIED');
   await reject({ workspace: path.dirname(stateDir) }, 'SCOPE_DENIED');
   for (const extra of [{ command: 'calc.exe' }, { executable: 'x' }, { args: [] }, { env: {} }, { shell: true }, { cwd: ws }]) {
     await reject({ workspace: ws, ...extra }, 'INVALID_ARGUMENT');

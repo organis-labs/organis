@@ -42,7 +42,7 @@ const now = () => new Date().toISOString();
 
 function insideOrEqual(parent, child) {
   const relative = path.relative(fold(parent), fold(child));
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
 }
 
 function realOrNull(target) {

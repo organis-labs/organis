@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+inheritance: true
+reviews:
+  profile: chill
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Use AGENTS.md, README.md and the mapped domain documents as context.
+        Distinguish implemented behavior from roadmap proposals and contract-only
+        entities. M1 runs only a bundled fixture; real agents, providers, remote
+        hosts and interactive approvals are later milestones. Report concrete
+        regressions with a trigger and impact, including contradictions between
+        the code and its documented contract.
+    - path: "packages/runtime/**"
+      instructions: |
+        Review ownership, persistence and lifecycle against docs/local-execution.md.
+        Check command deduplication, payload conflicts, atomic state/event writes,
+        canonical workspace exclusivity and durable launch intent before spawn.
+        Cancellation requests are not proof of termination. Unknown process trees
+        retain ownership; recovery must never kill stored PIDs or replay work.
+        Preserve the separation of agent-tool adapters and model-provider adapters.
+    - path: "apps/cli/**"
+      instructions: |
+        Preserve headless operation without Electron, a display, an account or a
+        maintainer service on Windows, macOS and Linux. Check JSON stdout/stderr
+        contracts, interrupt handling and the distinction between an owner and
+        an observer. Stopping observation must not claim confirmed termination.
+    - path: "apps/desktop/**"
+      instructions: |
+        Keep coordination in the shared runtime and privileged work in the main
+        process. Check trusted IPC senders, narrow preload contracts, sandbox and
+        context isolation. Polling must preserve action errors and keyboard focus
+        and avoid unchanged aria-live announcements. Preserve saved state when
+        runtime initialization fails.
+    - path: "{scripts,tests,.github/workflows}/**"
+      instructions: |
+        Check the platform actually exercised by each test. Unsigned directory
+        smoke builds do not prove installer, signing, notarization or update
+        acceptance. Keep release gates intact and public contribution jobs on
+        disposable hosted runners without maintainer secrets or personal hosts.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - files: "docs/local-execution.md"
+        applyTo: "packages/runtime/**, apps/cli/**, apps/desktop/**, scripts/**, tests/**"
+      - files: "docs/roadmap.md"
+        applyTo: "**/*"

@@ -7,6 +7,7 @@
   <title>Organis</title>
   <link rel="stylesheet" href="style.css">
   <script src="renderer.js" defer></script>
+  <script src="execution.js" defer></script>
 </head>
 <body>
   <main>
@@ -16,7 +17,24 @@
     <p class="intro">A home for your agents.</p>
     <section aria-label="Development status">
       <span class="dot" aria-hidden="true"></span>
-      <div><h2>The foundation is ready.</h2><p>This early build opens locally. Agent connections and workspace controls are coming next.</p></div>
+      <div><h2>Local execution foundation</h2><p>Run a deterministic test task and inspect its saved progress. Claude and Codex connections are coming next.</p></div>
+    </section>
+    <section class="execution" aria-labelledby="execution-heading">
+      <div>
+        <h2 id="execution-heading">Test a local run</h2>
+        <p>Choose a directory you trust. This bundled fixture does not edit your files. Workspace selection is not an operating-system sandbox.</p>
+        <div class="update-actions">
+          <button id="choose-workspace" type="button">Choose workspace</button>
+          <label>Test outcome <select id="fixture-mode"><option value="complete">Complete</option><option value="fail">Fail</option><option value="wait">Wait for cancellation</option></select></label>
+          <button id="start-fixture" type="button" disabled>Start test</button>
+        </div>
+        <p id="workspace-path">No workspace selected.</p>
+        <p id="execution-status" role="status" aria-live="polite">Loading saved runs…</p>
+        <button id="reconcile-runs" type="button">Reconcile interrupted runs</button>
+        <ol id="runs" aria-label="Saved runs"></ol>
+        <details><summary>Selected run events</summary><pre id="run-events">Select a run to view its events.</pre></details>
+        <p class="execution-note">Runs and events are shared with the CLI on this device. Closing the app requests cancellation of runs it owns; a persistent host comes later.</p>
+      </div>
     </section>
     <section class="updates" aria-label="Application updates">
       <div>

@@ -8,6 +8,7 @@ module.exports = {
   icon: 'build/icon.png',
   npmRebuild: false,
   files: ['**/*', '!entitlements.mac.plist'],
+  extraResources: [{ from: 'packages/runtime', to: 'runtime', filter: ['package.json', 'src/**/*'] }],
   publish: {
     provider: 'github', owner: 'organis-labs', repo: 'organis',
     channel: 'beta', releaseType: 'prerelease'

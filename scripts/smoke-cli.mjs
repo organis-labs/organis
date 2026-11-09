@@ -21,6 +21,11 @@ export async function smokeCLI(executable, entry, { earlyInterrupt = false } = {
     return result.stdout.trim().split('\n').map(line => JSON.parse(line));
   };
   try {
+    const connection = spawnSync(executable, [entry, 'agent', 'codex', 'check', '--executable', join(root, 'codex-missing'), '--json'],
+      { env, encoding: 'utf8', timeout: 10000, windowsHide: true });
+    if (connection.error || connection.status !== 1 || connection.stderr !== '') throw new Error('CLI connection diagnostic failed');
+    const diagnostic = JSON.parse(connection.stdout);
+    if (diagnostic.code !== 'CODEX_EXECUTABLE_INVALID' || diagnostic.capabilities.taskExecution !== false) throw new Error('CLI hid a missing Codex installation');
     const commandId = randomUUID();
     const request = ['fixture', '--workspace', workspace, '--command-id', commandId];
     const first = invoke(request);
@@ -61,7 +66,7 @@ export async function smokeCLI(executable, entry, { earlyInterrupt = false } = {
       if (child.exitCode === null) child.kill();
       await closed.catch(() => {});
     }
-    return { completion: true, persistence: true, deduplication: true, failure: true, cancellation: true, deniedScope: true, headless: true };
+    return { completion: true, persistence: true, deduplication: true, failure: true, cancellation: true, deniedScope: true, headless: true, codexConnectionDiagnostic: true };
   } finally {
     // root is a fresh OS temporary directory created by this invocation only.
     rmSync(root, { recursive: true, force: true });

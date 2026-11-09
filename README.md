@@ -77,6 +77,8 @@ hosting, real approval decisions and remote/mobile transport are later milestone
 
 Linux needs Electron system libraries, Xvfb (`xvfb-run`), and an unprivileged
 account with a functioning Chromium sandbox. Builds never disable the sandbox.
+On the disposable Ubuntu CI runner, an AppArmor profile allows user namespaces
+only for the packaged test executable; global namespace restrictions stay enabled.
 macOS builds require Apple's command-line developer tools and a GUI session for
 the renderer smoke check. No cross-compilation or untested architecture support
 is implied. WSL execution is reported separately from native Linux coverage.

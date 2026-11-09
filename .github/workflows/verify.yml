@@ -41,8 +41,16 @@ jobs:
       - name: Configure Chromium sandbox on the disposable Linux runner
         if: runner.os == 'Linux'
         run: |
-          sudo install -o root -g root -m 4755 node_modules/electron/dist/chrome-sandbox /usr/local/sbin/organis-test-sandbox
-          echo "CHROME_DEVEL_SANDBOX=/usr/local/sbin/organis-test-sandbox" >> "$GITHUB_ENV"
+          # Allow user namespaces only for this packaged executable, following
+          # Chromium's apparmor-userns-restrictions.md. Keep global protections on.
+          sudo tee /etc/apparmor.d/organis-ci >/dev/null <<EOF
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile organis-ci "$GITHUB_WORKSPACE/.build/verify-linux-x64/desktop/linux-unpacked/organis" flags=(unconfined) {
+            userns,
+          }
+          EOF
+          sudo apparmor_parser -r /etc/apparmor.d/organis-ci
       - name: Runtime, CLI and updater tests
         run: npm test
       - name: Verify packaged desktop and standalone CLI

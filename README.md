@@ -158,10 +158,11 @@ to map another domain document to the code it governs.
 - `tests`: CLI behavior checks.
 
 Release CI is orchestrated by private build infrastructure for an explicitly
-selected full source commit after all three main CI targets pass. The coordinator
-checks every five minutes, increases the beta version when needed, and waits for
-the version commit's CI before building and publishing. GitHub scheduling may be
-delayed; merges before publication may be combined into one release. Failed builds
+selected full source commit after all three main CI targets pass. CI completion
+notifies the private coordinator, which increases the beta version when needed.
+The version commit's CI completion then triggers building and publication. Build
+completion resumes any newer verified changes that arrived during the build;
+merges before publication may be combined into one release. Failed builds
 require maintainer inspection and manual retry. Public PR verification uses disposable GitHub-hosted
 runners; this repo has no self-hosted PR workflow.
 Successful complete release builds are validated and published to this repository's

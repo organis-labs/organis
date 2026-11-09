@@ -1,0 +1,36 @@
+name: Request verified beta release
+on:
+  workflow_run:
+    workflows: [Verify desktop and CLI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.repository.full_name == github.repository &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: release-dispatch
+    steps:
+      # No checkout or product code execution in this credentialed job.
+      - name: Notify private build infrastructure
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ORGANIS_BUILD_DISPATCH_TOKEN }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || { echo 'Configure the build-infra Actions-write-only dispatch token'; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          [[ "$CI_RUN_ID" =~ ^[1-9][0-9]*$ ]] || exit 1
+          gh api --method POST repos/organis-labs/build-infra/actions/workflows/auto-release.yml/dispatches \
+            -f ref=main -f "inputs[source_sha]=$SOURCE_SHA" -f "inputs[ci_run_id]=$CI_RUN_ID"

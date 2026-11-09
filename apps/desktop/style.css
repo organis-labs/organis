@@ -16,3 +16,15 @@ footer { margin-top: 48px; color: #7d8478; font-size: 12px; }
 button { font: inherit; font-size: 13px; background: #303330; color: #faf4ea; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
 button:focus-visible { outline: 3px solid #42ac6b; outline-offset: 3px; }
+.execution { margin-top: 28px; }
+.execution > div { width: 100%; min-width: 0; }
+.execution .update-actions { flex-wrap: wrap; align-items: center; }
+.execution label { display: grid; gap: 4px; font-size: 12px; }
+select { font: inherit; padding: 8px; max-width: 100%; }
+#workspace-path { overflow-wrap: anywhere; margin: 12px 0; }
+#execution-status { margin-bottom: 12px; }
+#runs { padding: 0; list-style: none; max-height: 260px; overflow: auto; }
+#runs li { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.run-link { background: #e7e9df; color: #303330; text-align: left; flex: 1; }
+#run-events { max-height: 260px; overflow: auto; font-size: 12px; }
+.execution-note { margin-top: 16px; }

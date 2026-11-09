@@ -10,10 +10,10 @@ test('CLI reports version without Electron or network access', () => {
   const result = run('--version');
   assert.equal(result.status, 0); assert.equal(result.stdout.trim(), version);
 });
-test('status JSON exposes bootstrap capability honestly', () => {
+test('status JSON distinguishes fixture execution from agent integration', () => {
   const result = run('status', '--json');
   assert.equal(result.status, 0);
-  assert.deepEqual(JSON.parse(result.stdout), {name:'Organis',version,stage:'bootstrap',platform:process.platform,arch:process.arch,runtime:process.version,agentRuntimeAvailable:false});
+  assert.deepEqual(JSON.parse(result.stdout), {name:'Organis',version,stage:'local-execution-foundation',platform:process.platform,arch:process.arch,runtime:process.version,agentRuntimeAvailable:false,fixtureExecutionAvailable:true});
 });
 test('invalid commands fail instead of claiming to execute an agent', () => {
   for (const args of [['run'], ['status', '--unknown'], ['--version', 'extra']]) {

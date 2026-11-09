@@ -2,7 +2,7 @@
 // select an immutable version directory rather than replacing a running binary.
 const { lstatSync, readFileSync, realpathSync } = require('node:fs');
 const { join, resolve } = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 
 function samePath(left, right) {
   return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
@@ -28,7 +28,7 @@ function selectBundle(root) {
   safePath(bundle, true);
   return bundle;
 }
-function launch(root = __dirname, args = process.argv.slice(2)) {
+async function launch(root = __dirname, args = process.argv.slice(2)) {
   const bundle = selectBundle(root);
   const executable = join(bundle, process.platform === 'win32' ? 'node.exe' : 'node');
   safePath(executable, false);
@@ -36,14 +36,40 @@ function launch(root = __dirname, args = process.argv.slice(2)) {
   for (const part of ['apps', 'cli', 'src']) { source = join(source, part); safePath(source, true); }
   const entry = join(source, 'main.mjs');
   safePath(entry, false);
-  const result = spawnSync(executable, [entry, ...args], {
-    stdio: 'inherit', env: { ...process.env, ORGANIS_INSTALL_ROOT: resolve(root) }, windowsHide: true
+  const child = spawn(executable, [entry, ...args], {
+    stdio: ['inherit', 'inherit', 'inherit', 'ipc'],
+    env: { ...process.env, ORGANIS_INSTALL_ROOT: resolve(root) }, windowsHide: true, detached: true
   });
-  if (result.error) throw new Error('Unable to launch the installed CLI');
-  return result.status ?? 1;
+  // A private IPC channel forwards terminal control without Windows kill()
+  // force-termination or duplicate foreground-group signals on Unix.
+  const interrupt = (signal = 'SIGINT') => {
+    if (args[0] === 'run') {
+      if (child.connected) child.send({ type: 'organis:interrupt' }, () => {});
+    } else child.kill(signal);
+  };
+  const parentControl = message => { if (message?.type === 'organis:interrupt') interrupt(); };
+  const sigint = () => interrupt('SIGINT');
+  const sigterm = () => interrupt('SIGTERM');
+  process.on('SIGINT', sigint);
+  process.on('SIGTERM', sigterm);
+  process.on('message', parentControl);
+  process.on('disconnect', interrupt);
+  try {
+    return await new Promise((resolveExit, reject) => {
+      child.once('error', () => reject(new Error('Unable to launch the installed CLI')));
+      child.once('exit', (code, signal) => resolveExit(code ?? (signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 1)));
+    });
+  } finally {
+    process.off('SIGINT', sigint);
+    process.off('SIGTERM', sigterm);
+    process.off('message', parentControl);
+    process.off('disconnect', interrupt);
+    if (process.connected) process.disconnect();
+  }
 }
 module.exports = { selectBundle, launch };
 if (require.main === module) {
-  try { process.exitCode = launch(); }
-  catch (error) { console.error(`Organis: ${error.message}`); process.exitCode = 1; }
+  launch().then(code => { process.exitCode = code; }).catch(error => {
+    console.error(`Organis: ${error.message}`); process.exitCode = 1;
+  });
 }

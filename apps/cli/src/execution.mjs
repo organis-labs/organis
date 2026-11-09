@@ -44,7 +44,11 @@ export async function executionCommand(args) {
   const interrupt = () => {
     if (activeId && (!ownsRun || interrupted)) return stopObserving();
     interrupted = true;
-    if (activeId) runtime.cancel(activeId).catch(() => { process.exitCode = 1; });
+    if (activeId) runtime.cancel(activeId).catch(error => {
+      const code = error.code ?? 'RUNTIME_ERROR';
+      const message = `Cancellation request failed: ${error.message}. Press Ctrl+C again to stop observing; termination is not confirmed. Inspect and reconcile the saved run.`;
+      console.error(options.json ? JSON.stringify({ type: 'error', code, message }) : `${code}: ${message}`);
+    });
   };
   const parentControl = message => { if (message?.type === 'organis:interrupt') interrupt(); };
   process.on('SIGINT', interrupt);

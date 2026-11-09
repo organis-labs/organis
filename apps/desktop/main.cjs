@@ -3,7 +3,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createUpdateController } = require('./updates.cjs');
 const { createExecutionController } = require('./execution.cjs');
-const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = require('node:fs');
+const { mkdtempSync, mkdirSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 
 const unavailableSmoke = process.argv.includes('--smoke-runtime-unavailable');
@@ -63,11 +63,45 @@ function createWindow() {
             }
             const state = await window.organisUpdates.status();
             if (!state.currentVersion || !document.querySelector('#app-version').textContent) throw new Error('Updater unavailable after runtime failure');
+            let changes = 0;
+            const observer = new MutationObserver(() => changes++);
+            observer.observe(document.querySelector('#execution-status'), { childList: true, characterData: true, subtree: true });
+            await new Promise(resolve => setTimeout(resolve, 1200));
+            observer.disconnect();
+            if (changes) throw new Error('Unchanged runtime error was announced again');
           })()`);
           console.log('ORGANIS_DESKTOP_UNAVAILABLE_SMOKE_OK');
           await finishSmoke(0);
           return;
         }
+        await window.webContents.executeJavaScript(`(async () => {
+          document.querySelector('#choose-workspace').click();
+          const deadline = Date.now() + 10000;
+          while (document.querySelector('#start-fixture').disabled) {
+            if (Date.now() > deadline) throw new Error('Workspace selection timed out');
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        })()`);
+        // Remove only the empty synthetic workspace to exercise a real IPC failure.
+        rmdirSync(path.join(smokeRoot, 'workspace'));
+        await window.webContents.executeJavaScript(`(async () => {
+          document.querySelector('#start-fixture').click();
+          const status = document.querySelector('#execution-status');
+          const deadline = Date.now() + 10000;
+          while (document.querySelector('#start-fixture').disabled || !/workspace|ENOENT/i.test(status.textContent)) {
+            if (Date.now() > deadline) throw new Error('Missing workspace failure was not shown');
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          const message = status.textContent;
+          let changes = 0;
+          const observer = new MutationObserver(() => changes++);
+          observer.observe(status, { childList: true, characterData: true, subtree: true });
+          await new Promise(resolve => setTimeout(resolve, 1200));
+          observer.disconnect();
+          if (status.textContent !== message || changes) throw new Error('Polling replaced or repeated the action error');
+          if ((await window.organisExecution.list()).length) throw new Error('Failed start created a run');
+        })()`);
+        mkdirSync(path.join(smokeRoot, 'workspace'));
         await window.webContents.executeJavaScript(`(async () => {
           const wait = async predicate => {
             const deadline = Date.now() + 15000;

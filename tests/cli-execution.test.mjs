@@ -10,6 +10,55 @@ import { randomUUID } from 'node:crypto';
 import { smokeCLI } from '../scripts/smoke-cli.mjs';
 
 const entry = fileURLToPath(new URL('../apps/cli/src/main.mjs', import.meta.url));
+
+for (const json of [false, true]) {
+  test(`a failed interrupt cancellation is reported on stderr (${json ? 'JSON' : 'text'})`, { timeout: 20000 }, async () => {
+    const root = mkdtempSync(join(tmpdir(), 'organis-cli-cancel-error-'));
+    const workspace = join(root, 'workspace');
+    mkdirSync(workspace);
+    // Inject only the failed request boundary; use the real CLI, runtime and fixture.
+    const preload = `
+      import { LocalRuntime } from ${JSON.stringify(new URL('../packages/runtime/src/execution.mjs', import.meta.url).href)};
+      LocalRuntime.prototype.cancel = async () => {
+        throw Object.assign(new Error('Injected persistence failure'), { code: 'PERSISTENCE_FAILED' });
+      };
+    `;
+    const child = spawn(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(preload)}`,
+      entry, 'run', 'fixture', '--workspace', workspace, '--duration', '1500', '--state-dir', join(root, 'state'),
+      ...(json ? ['--json'] : [])], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'], windowsHide: true });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', bytes => { stdout += bytes; });
+    child.stderr.on('data', bytes => { stderr += bytes; });
+    const closed = new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
+    try {
+      const deadline = Date.now() + 10000;
+      while (!stdout.includes('"duplicate"') && child.exitCode === null && Date.now() < deadline) await delay(25);
+      assert.ok(stdout.includes('"duplicate"'), `Missing acknowledgement: ${stderr}`);
+      child.send({ type: 'organis:interrupt' });
+      assert.equal(await closed, 0, stderr);
+      assert.match(stderr, /Cancellation request failed: Injected persistence failure/);
+      assert.match(stderr, /Press Ctrl\+C again to stop observing; termination is not confirmed/);
+      if (json) {
+        const errors = stderr.trim().split('\n').filter(line => line.startsWith('{')).map(line => JSON.parse(line));
+        assert.equal(errors.length, 1);
+        assert.equal(errors[0].type, 'error');
+        assert.equal(errors[0].code, 'PERSISTENCE_FAILED');
+        const records = stdout.trim().split('\n').map(line => JSON.parse(line));
+        assert.deepEqual(records.map(record => record.type), ['accepted', 'result']);
+        assert.equal(records.at(-1).run.state, 'completed');
+      } else {
+        assert.match(stderr, /PERSISTENCE_FAILED: Cancellation request failed/);
+        assert.match(stdout, /"state": "completed"/);
+      }
+    } finally {
+      if (child.exitCode === null) child.kill();
+      await closed.catch(() => {});
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
 test('source CLI completes, persists, deduplicates, cancels and reports failure without a display', async () => {
   assert.equal((await smokeCLI(process.execPath, entry)).headless, true);
 });

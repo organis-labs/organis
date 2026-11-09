@@ -11,6 +11,20 @@ let selectedId;
 let commandId = crypto.randomUUID();
 let lastSignature;
 const terminalStates = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
+let pollStatus = executionStatus.textContent;
+let actionError = false;
+
+function setActionStatus(message, isError = false) {
+  actionError = isError;
+  if (executionStatus.textContent !== message) executionStatus.textContent = message;
+}
+
+function setPollStatus(message, failed = false) {
+  // Preserve action errors, but a polling failure must still replace a success notice.
+  if (actionError || (!failed && executionStatus.textContent !== pollStatus)) return;
+  if (executionStatus.textContent !== message) executionStatus.textContent = message;
+  pollStatus = message;
+}
 
 async function refreshRuns() {
   if (refreshing) return;
@@ -42,9 +56,9 @@ async function refreshRuns() {
             cancel.disabled = true;
             try {
               await execution.cancel({ id: run.id, commandId: crypto.randomUUID() });
-              executionStatus.textContent = 'Cancellation requested. Waiting for process termination.';
+              setActionStatus('Cancellation requested. Waiting for process termination.');
               await refreshRuns();
-            } catch (error) { executionStatus.textContent = error.message; cancel.disabled = false; }
+            } catch (error) { setActionStatus(error.message, true); cancel.disabled = false; }
           });
           row.append(cancel);
         }
@@ -56,15 +70,14 @@ async function refreshRuns() {
       }
       if (selectedId) await showEvents();
     }
-    if (!runs.length) executionStatus.textContent = 'No saved runs yet.';
-    else if (executionStatus.textContent === 'Loading saved runs…') executionStatus.textContent = `${runs.length} saved run(s).`;
-  } catch (error) { executionStatus.textContent = `Saved runs unavailable: ${error.message}`; }
+    setPollStatus(runs.length ? `${runs.length} saved run(s).` : 'No saved runs yet.');
+  } catch (error) { setPollStatus(`Saved runs unavailable: ${error.message}`, true); }
   finally { refreshing = false; }
 }
 
 async function showEvents() {
   try { document.querySelector('#run-events').textContent = JSON.stringify(await execution.events(selectedId), null, 2); }
-  catch (error) { executionStatus.textContent = error.message; }
+  catch (error) { setActionStatus(error.message, true); }
 }
 chooseWorkspace.addEventListener('click', async () => {
   try {
@@ -75,7 +88,7 @@ chooseWorkspace.addEventListener('click', async () => {
       commandId = crypto.randomUUID();
       startFixture.disabled = starting;
     }
-  } catch (error) { executionStatus.textContent = error.message; }
+  } catch (error) { setActionStatus(error.message, true); }
 });
 fixtureMode.addEventListener('change', () => { commandId = crypto.randomUUID(); });
 startFixture.addEventListener('click', async () => {
@@ -88,17 +101,17 @@ startFixture.addEventListener('click', async () => {
     const result = await execution.start({ mode: fixtureMode.value, commandId });
     selectedId = result.run.id;
     commandId = crypto.randomUUID();
-    executionStatus.textContent = `Run ${result.run.id.slice(0, 8)} acknowledged. Progress is saved locally.`;
+    setActionStatus(`Run ${result.run.id.slice(0, 8)} acknowledged. Progress is saved locally.`);
     await refreshRuns();
-  } catch (error) { executionStatus.textContent = error.message; }
+  } catch (error) { setActionStatus(error.message, true); }
   finally { starting = false; startFixture.disabled = false; chooseWorkspace.disabled = false; fixtureMode.disabled = false; }
 });
 document.querySelector('#reconcile-runs').addEventListener('click', async () => {
   try {
     await execution.reconcile();
-    executionStatus.textContent = 'Reconciliation checked. Uncertain work is never restarted automatically.';
+    setActionStatus('Reconciliation checked. Uncertain work is never restarted automatically.');
     await refreshRuns();
-  } catch (error) { executionStatus.textContent = error.message; }
+  } catch (error) { setActionStatus(error.message, true); }
 });
 refreshRuns();
 setInterval(refreshRuns, 500);

@@ -123,6 +123,17 @@ manifest records signing and notarization separately; releases require both.
 Never put certificates, passwords,
 or keychain exports in this repository.
 
+## Code review guidance
+
+CodeRabbit uses the repository's `AGENTS.md` and the path-specific instructions in
+`.coderabbit.yaml`. The configuration maps `docs/local-execution.md` to the runtime,
+clients and their verification code, and `docs/roadmap.md` to the whole repository.
+Update the execution contract when behavior changes; mark future milestones and
+contract-only entities explicitly so reviewers can distinguish them from current
+requirements. Change the configuration's `reviews.path_instructions` to add
+area-specific review criteria, and `knowledge_base.code_guidelines.filePatterns`
+to map another domain document to the code it governs.
+
 ## Layout
 
 - `apps/desktop`: isolated Electron shell and local static UI.

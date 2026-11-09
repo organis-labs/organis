@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+contextBridge.exposeInMainWorld('organisAgents', Object.freeze({
+  chooseCodex: () => ipcRenderer.invoke('agents:chooseCodex'),
+  checkCodex: () => ipcRenderer.invoke('agents:checkCodex')
+}));
+
 contextBridge.exposeInMainWorld('organisExecution', Object.freeze({
   chooseWorkspace: () => ipcRenderer.invoke('execution:chooseWorkspace'),
   list: () => ipcRenderer.invoke('execution:list'),

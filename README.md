@@ -3,8 +3,9 @@
 Desktop and CLI foundation for a general-purpose agent workspace. Both clients
 run a bundled deterministic fixture through a shared local execution runtime,
 with saved state, ordered events, command deduplication and cancellation.
-Real agent connections, provider integrations, synchronization and interactive
-approvals are not implemented. See the [execution contract](docs/local-execution.md)
+Codex connection checks are available; real agent task execution, provider
+integrations, synchronization and interactive approvals are not implemented.
+See the [execution contract](docs/local-execution.md)
 for ownership, recovery and scope limitations.
 
 ## Development
@@ -34,6 +35,20 @@ macOS arm64 and Linux x64 runners without maintainer secrets or personal hosts.
 Its result is package/runtime verification, not release-installation acceptance.
 
 ## Local execution
+
+Check an installed Codex CLI without starting a task:
+
+```sh
+organis agent codex check --json
+organis agent codex check --executable /absolute/path/to/codex --json
+```
+
+The desktop offers **Check connection** and an executable picker. Currently the
+verified version is Codex **0.164.0**; other versions are reported as unverified.
+On Windows select the native `codex.exe`, not an npm `.cmd` shim. Sign in through
+`codex login` in your terminal. Organis does not import credentials or start login
+automatically. See the [connection contract](docs/specs/codex-connection-check.md)
+for error handling, privacy and actual platform coverage.
 
 In the desktop app, choose a trusted workspace and start a test. Select Complete,
 Fail or Wait for cancellation, then inspect the saved run and events. Cancelling

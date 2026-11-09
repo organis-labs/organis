@@ -1,6 +1,7 @@
 # Organis product roadmap
 
-Updated: 2026-11-09. Status: M0 distribution baseline plus M1 fixture implementation;
+Updated: 2026-11-09. Status: M0 distribution baseline, M1 fixture implementation,
+and R03 Codex feasibility/connection checks;
 later milestones remain a reviewable planning draft. Future milestones below
 are proposed sequencing, not implemented features, release promises, or approval
 to make security, licensing, hosting, or data-retention decisions.
@@ -47,6 +48,7 @@ the PR records actual per-platform results for the tested source revision.
 | Update limits | Fixture was not a historical public release; Windows requires NSIS interaction; Mac used the button's IPC bridge; bare-metal Linux not verified |
 | CLI update | Implemented verified staging and atomic version selection; unit/recovery coverage and scoped Mac simulated-old-version test, not full historical upgrades on every OS |
 | Runtime | M1 fixture lifecycle, versioned SQLite persistence, command deduplication and recovery; no real agent, approval decisions or provider integration |
+| Codex connection | R03 installed-CLI/version/authentication check in CLI and desktop; [decision and evidence](decisions/first-agent-adapter.md); task execution remains R04 |
 | Remote / sync / mobile | Not implemented |
 | License | Not selected; public source is not an open-source license grant |
 
@@ -161,10 +163,11 @@ authentication; do not import credential caches into Organis. Confirm and docume
 the selected integration mode's current provider requirements before implementing
 it as a distributed product feature.
 
-Select the first adapter after a bounded feasibility check of supported interfaces
-for Codex CLI and Claude CLI. This selects which of the two to implement first,
-not a replacement for the target two-participant flow. Selection is still open; neither adapter is currently
-implemented. Verify supported authentication, streaming, cancellation, approval,
+R03 selected Codex CLI first after a bounded feasibility check of supported
+interfaces for Codex CLI and Claude CLI. This is not a replacement for the target
+two-participant flow. The [connection check](specs/codex-connection-check.md) supports
+Codex 0.164.0; neither real task adapter is enabled yet. Verify supported
+authentication, streaming, cancellation, approval,
 resume and exit semantics against current upstream documentation at implementation
 time. Do not assume identical capabilities or automate interactive terminal text
 as a stable protocol when an official interface exists.
@@ -422,7 +425,7 @@ collaboration, then full desktop acceptance. Preserve existing work-item IDs.
 | --- | --- | --- |
 | R01 | Specify room/participant and lifecycle, ownership, event/error and persistence contracts | Reviewed state table, write/session ownership and crash/cancel/retry cases; storage decision recorded |
 | R02 | Implement local CLI execution with a deterministic fixture adapter | Headless completion, denial, cancellation and restart tests |
-| R03 | Evaluate installed Claude/Codex interfaces and authentication mode | Capability/policy note, supported versions, bounded-task evidence; first-adapter decision |
+| R03 | Evaluate installed Claude/Codex interfaces and authentication mode — implemented | [Codex-first decision, capability/policy note and bounded text-task evidence](decisions/first-agent-adapter.md); CLI/desktop connection check |
 | R04 | Implement the selected adapter | M2 acceptance, including failure/cancel paths |
 | R05 | Specify and implement desktop room/participant flow | Fresh-install M2.5 collaboration and matching runtime state |
 | R06 | Close release coverage gaps for a genuine next release | Per-OS desktop/CLI old-to-new evidence; native Linux scope recorded |
@@ -480,7 +483,7 @@ their effects. Do not implement an unresolved policy merely to finish a mileston
 | Decision | Needed before | Current disposition |
 | --- | --- | --- |
 | Product license and redistribution policy | External contribution/reuse expectations | Open; do not infer a license |
-| First adapter and supported versions | R04 | Compare supported interfaces in R03 |
+| First adapter and supported versions | R04 | Codex selected; 0.164.0 connection check verified in R03; execution compatibility remains to be established |
 | Installed CLI integration mode and provider requirements | R04 | User-owned unmodified CLI is the candidate; verify exact mode, not Orca precedent |
 | Lead handoff, mention routing and context visibility | R08 / M2.5 | One room lead and bounded briefs proposed; no implicit transcript broadcast |
 | Revision limit, writer scope and participant removal | R08 design; R09 implementation | Bounded serial collaboration first; defaults and transitions need specification |

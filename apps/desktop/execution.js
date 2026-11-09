@@ -45,7 +45,12 @@ async function refreshRuns() {
         show.className = 'run-link';
         const stateLabel = run.ownershipRetained ? `${run.state} (termination unverified)` : run.state;
         show.textContent = `${stateLabel} · ${run.id.slice(0, 8)} · ${new Date(run.createdAt).toLocaleString()}`;
-        show.addEventListener('click', async () => { selectedId = run.id; await showEvents(); });
+        show.addEventListener('click', async () => {
+          selectedId = run.id;
+          const panel = document.querySelector('#run-events').closest('details');
+          if (panel) panel.open = true;
+          await showEvents();
+        });
         row.append(show);
         if (!terminalStates.has(run.state)) {
           const cancel = document.createElement('button');

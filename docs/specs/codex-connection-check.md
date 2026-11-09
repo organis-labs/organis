@@ -79,8 +79,13 @@ sender/frame check. Quitting waits for any pending connection check to close.
   IPC -> packaged runtime -> visible error, without requiring an account or a
   provider installation. CLI tests run without Electron or a display.
 - Windows live verification with installed Codex 0.164.0 passed discovery, reported
-  ChatGPT sign-in and sandbox readiness, and clean process exit. This does not
-  establish live Codex authentication on macOS/Linux. Native CI checks portable
-  implementation and packages with synthetic protocol responses.
+  ChatGPT sign-in and sandbox readiness, and clean process exit.
+- Ubuntu 24.04 x64 under WSL2 passed the CLI connection check after Codex's own
+  device login. The actual Electron 45.2.3 desktop connection button also passed,
+  without sandbox-disabling flags and with renderer Node access absent. Both used
+  source revision `e1988af9bad8ada081ed847de2e19d668b26220d`, Node 24.22.2 and the
+  official Linux Codex 0.164.0 binary. All 68 tests passed on this environment.
+  WSL2 is not bare-metal Linux acceptance. Native CI checks implementation and
+  packages with synthetic protocol responses; it does not use provider accounts.
 - Resuming sessions, interactive approvals, scoped file changes, general agent
   execution and strong child-process containment remain R04 work.

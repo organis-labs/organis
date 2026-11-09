@@ -34,16 +34,21 @@ See [headless usage](https://code.claude.com/docs/en/headless) and
 
 ## Bounded live evidence
 
-On Windows x64 with Codex 0.164.0, a separate development feasibility probe:
+On Windows x64 and Ubuntu 24.04 x64 under WSL2 with Codex 0.164.0, separate
+development feasibility probes:
 
 - initialized the stable protocol and read a sanitized signed-in state;
-- observed Windows sandbox readiness `ready`;
+- observed Windows sandbox readiness `ready` on Windows;
 - created an ephemeral thread in a synthetic directory with read-only scope,
   network access false, `untrusted` approval and a user reviewer;
 - received message deltas and a `completed` turn for a short synthetic text task;
 - started a second text task, interrupted it and received `interrupted`;
 - observed no tool-execution items, unsubscribed the thread, closed stdin, and
   observed the app-server exit with code 0.
+
+The WSL2 follow-up verified the exact synthetic response `ORGANIS_PROBE_OK`
+across six deltas. It interrupted the second turn after its first message delta
+while the turn was still active, then observed `interrupted` and exit code 0.
 
 The probe disabled hooks, apps, plugins, shell tools and native subagents. An
 empty `mcp_servers={}` override did **not** remove configured servers, so the probe
@@ -52,9 +57,10 @@ treat an empty configuration object as proof of isolation. No private workspace,
 account identifier, server name, credential or transcript is included here.
 
 This is text-task protocol evidence, not proof that arbitrary command descendants
-terminate, that file-writing tasks are scoped on every OS, or that real Codex
-works on a fresh Mac/Linux installation. The product's connection check does not
-create these probe threads or make model requests.
+terminate, that file-writing tasks are scoped on every OS, or that every fresh
+Mac/Linux installation works. WSL2 evidence does not establish bare-metal Linux
+acceptance. The product's connection check does not create these probe threads
+or make model requests.
 
 ## R04 implementation gates
 

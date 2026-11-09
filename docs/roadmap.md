@@ -11,6 +11,9 @@ a workspace and execution host, run a bounded task, inspect its progress, approv
 scoped actions, and stop it reliably. Local CLI use must work without an Organis
 account, relay, desktop application, or maintainer-operated inference service.
 Remote execution, synchronization, and mobile management are optional extensions.
+Mobile is a full conversation-room client: users can request work and control
+agents in the same rooms they use on desktop. Agents execute on the selected
+authorized host, not on the phone. Local-only desktop/CLI use remains supported.
 
 Start with an individual developer managing their own trusted workspaces and
 machines. The target first useful product is a conversation room with explicitly
@@ -85,13 +88,15 @@ when its acceptance evidence is linked. Status starts as `planned` unless shown.
 | M6 | Reusable skills and bounded workflows | M2; M4 for durable workflows | Versioned packages compose work without expanding permission silently |
 | M7 | Remote execution and approvals | M4, authenticated protocol and threat model | Two authorized hosts execute and reconnect without duplicate side effects |
 | M8 | Optional private synchronization | M4, approved privacy/recovery design | Selected private state synchronizes with conflicts and recovery handled |
-| M9 | Mobile observation and approvals | M7; M8 only for synchronized state | A paired mobile client observes runs and approves exact pending actions |
+| M9 | Mobile shared-room work and control | M7, room contracts; independent of M8 | A paired phone joins the same rooms, requests work, steers/cancels tasks and handles approvals |
 | M10 | Broader beta and stable release readiness | Core flow plus selected scope | Documented compatibility, recovery and fresh-install acceptance hold |
 
 M5 and M6 can proceed independently once their contracts exist. M8 is not required
-for remote execution or mobile approval. M10 hardening begins with M1; stable
+for remote execution or mobile room control. M10 hardening begins with M1; stable
 release scope need not include every optional milestone.
 M3 UI prototyping can start earlier, but cannot substitute for M2.5 acceptance.
+Mobile contracts start in M1 and mobile interaction design starts alongside M3.
+M9 denotes end-to-end mobile acceptance after M7, not the start of all mobile work.
 M2.5 requires neither a daemon nor a reusable workflow engine. The extraction track
 below starts with inventory alongside M1; implementation waits for its review gates.
 
@@ -104,6 +109,10 @@ capability; a participant is a room-local role with a provider session reference
 Organis owns execution records, assignment and cancellation propagation. The
 provider owns its native session semantics; neither chat text nor a session handle
 alone is proof that a task finished.
+Design room/message/participant identities and event cursors for desktop and mobile
+from the outset. Both are clients of the same authoritative room owner; the phone
+does not create a duplicate agent session or independent coordinator. Define
+command acknowledgement, deduplication and reconciliation for multiple clients.
 Choose a local storage approach in a short design decision; do not scatter
 unversioned JSON formats across clients. Keep the initial implementation small.
 
@@ -212,6 +221,11 @@ path before claiming collaboration requires a GUI. Remote execution is deferred.
 
 ## M3 — Desktop onboarding and room management
 
+Design the mobile version of the same room flows alongside desktop: participant
+selection, mentions, attachments, progress, artifacts, approval and cancellation.
+Share runtime contracts rather than requiring identical screen layouts. Prototype
+phone loading, offline, reconnect and conflicting-control states before M7/M9.
+
 Build global agent connection setup, room creation, participant/lead selection,
 workspace selection, a task composer, execution list,
 detail/event view, output/artifact view and explicit cancellation. Display model
@@ -281,6 +295,13 @@ external write. Package examples contain synthetic data and redistributable cont
 
 ## M7 — Remote execution and approvals
 
+Expose authenticated room access and task-control contracts for desktop and mobile
+clients, not only machine-to-machine task submission. A paired client can list and
+open authorized rooms, send messages, manage permitted participants, submit work,
+receive events/artifacts and issue scoped control commands. Enforce authorization
+on the owning host for every command. Reconcile concurrent desktop/phone commands;
+stale approvals and duplicate submissions cannot create a second execution.
+
 Choose direct connection versus optional relay only after defining device identity,
 pairing, authenticated transport, authorization, revocation and coordinator
 ownership. A relay must not become mandatory for local use. Add host inventory and
@@ -307,16 +328,55 @@ partial upload and old schema versions have tested recovery behavior. Local-only
 users remain supported. Do not ship cross-device private data until these policy
 decisions and their tests are complete.
 
-## M9 — Mobile observation and approvals
+## M9 — Mobile shared-room work and control
 
-Choose mobile platforms and technology after M7's protocol is stable enough to
-reuse. Start with paired-host status, task/event viewing and approval decisions;
-phone-side agent execution is not part of the initial scope.
+The maintainer's requested scope is the same conversation rooms on desktop and
+mobile, including initiating and controlling work. Choose supported mobile platforms
+and client technology during the M3 design track; do not assume a framework or ship
+date. Reuse M1/M2.5 room semantics and M7 authenticated transport. Claude/Codex and
+their authentication remain on the selected execution host. Running coding CLIs on
+the phone is outside the initial scope.
 
-Acceptance: notifications are hints, not authority. Opening an approval retrieves
-current authenticated state; stale, changed, expired and already-decided requests
-cannot execute. Device revocation, offline handling, sensitive notification content
-and accessibility are covered. Mobile and desktop display the same decision/result.
+Deliver:
+- Pair/revoke a device and select an authorized execution host; show unavailable
+  hosts explicitly rather than silently choosing another machine.
+- List, create and reopen authorized rooms. Join connected host agents, inspect
+  and change roles within the same membership and active-task rules as desktop.
+- Send ordinary requests and `@participant` messages; attach files/images through
+  explicit upload to the selected host. Phone-local paths are not host file paths.
+  Define upload permissions, limits, retention and failure handling before shipping.
+- Show participant progress, messages, logs, changed-file summaries, images and
+  result artifacts with source/run identity. Apply existing context-sharing rules.
+- Send follow-up instructions; visibly distinguish queued input from steering an
+  active task where supported. Cancel work and approve/deny exact pending actions.
+- Notify about approval requests, completion and failures, with privacy-conscious
+  previews. Notifications open current authenticated room state, not executable
+  authorization payloads. Define platform background/push behavior explicitly.
+
+Acceptance:
+- Create a room on desktop, open it on a paired phone, request the Claude plan ->
+  Codex implementation -> Claude review flow from the phone, and observe the same
+  room, participant sessions, task IDs and results on both clients. Also create a
+  room on mobile and continue it from desktop without duplicating execution.
+- Mobile follow-up, scoped approval/denial and cancellation reach the owning host;
+  both clients converge on the actual result. Revoked/unauthorized devices cannot
+  read rooms or control work, even through old notifications.
+- Disconnect after submitting: show acknowledged, unsent or uncertain delivery
+  honestly; reconcile by command identity before retry. Repeated taps, reconnects
+  and conflicting desktop/phone controls do not start duplicate attempts. Offline
+  draft handling must not silently execute accumulated work after reconnection.
+- Force-close/background the phone while a host task runs: host ownership remains
+  intact, and reopening restores current state plus missing events. Do not require
+  the mobile process to stay alive for the task to continue.
+- Stale, changed, expired and already-decided approvals cannot execute. A cancel
+  request is not displayed as cancelled until termination is confirmed.
+- Interrupted attachment upload cannot produce a task referencing a missing file;
+  artifact access respects room authorization. Test accessibility and supported
+  phone/platform behavior separately before claiming platform coverage.
+
+This requires live access to host-owned room state, not M8's general cross-device
+private-state synchronization. Offline replicas, merging independent room stores
+and phone-side agent execution are deferred unless separately specified.
 
 ## M10 — Release readiness and ongoing quality
 
@@ -356,11 +416,16 @@ collaboration, then full desktop acceptance. Preserve existing work-item IDs.
 | R09 | Add second real participant and plan/code/review flow | M2.5 artifacts, actual test records, bounded revisions, failure/cancel acceptance |
 | R10 | Inventory private predecessor capabilities | Sanitized extraction matrix with provenance and unknowns; no bulk import or cutover |
 | R11 | Extract one reviewed reusable capability | Synthetic tests, fresh-machine acceptance and preserved original behavior |
+| R12 | Specify shared desktop/mobile room interaction and control contracts | M1 identities plus mobile M3 flows, delivery/reconnect, attachment and permission decisions |
+| R13 | Implement mobile shared-room client after M7 | M9 phone-originated work, steering, approval, cancellation and cross-client recovery evidence |
 
 R03, R07, R08 and inventory-only R10 can run alongside R01. R04 depends on R01/R02
 and R03; R08 must be resolved before forwarding room context to a real participant.
 R09 follows R04/R08 and proves the second adapter; R05 full acceptance follows R09.
 R11 follows the extraction gates below. No issues are created by this file.
+R12 contract work runs with R01/R08, and mobile UX design with R05; it does not wait
+for M9. R13 requires R09, M4/M7 and resolved mobile transport/platform/data policies,
+but not M8 or M5/M6. Implementation may be staged; full acceptance is M9.
 
 ## Parallel extraction track — preserve the working predecessors
 
@@ -411,7 +476,8 @@ their effects. Do not implement an unresolved policy merely to finish a mileston
 | Package trust/provenance and workflow coordination | M6 | Reviewed pinned packages first |
 | Remote topology, identity and revocation | M7 | Optional remote service; no transport selected |
 | Sync data, encryption, recovery and retention | M8 | Block private synchronization until approved |
-| Mobile targets and client technology | M9 | Observation/approval first |
+| Mobile targets, technology and background/push behavior | M3 design; R13 implementation | Full shared-room work/control; host execution, platform choice open |
+| Mobile attachment and offline delivery policy | R12; before R13 shipping | Explicit host upload, authorization/retention and deduplication required |
 | Stable-release scope and support policy | M10 | Based on evidence, not completion of all optional features |
 
 ## How agents should use this roadmap

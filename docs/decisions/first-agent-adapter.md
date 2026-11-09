@@ -34,8 +34,8 @@ See [headless usage](https://code.claude.com/docs/en/headless) and
 
 ## Bounded live evidence
 
-On Windows x64 and Ubuntu 24.04 x64 under WSL2 with Codex 0.164.0, separate
-development feasibility probes:
+On Windows x64, macOS 26.2 arm64 and Ubuntu 24.04 x64 under WSL2 with Codex
+0.164.0, separate development feasibility probes:
 
 - initialized the stable protocol and read a sanitized signed-in state;
 - observed Windows sandbox readiness `ready` on Windows;
@@ -46,9 +46,17 @@ development feasibility probes:
 - observed no tool-execution items, unsubscribed the thread, closed stdin, and
   observed the app-server exit with code 0.
 
-The WSL2 follow-up verified the exact synthetic response `ORGANIS_PROBE_OK`
-across six deltas. It interrupted the second turn after its first message delta
-while the turn was still active, then observed `interrupted` and exit code 0.
+The macOS and WSL2 follow-ups each verified the exact synthetic response
+`ORGANIS_PROBE_OK` across six real model message deltas. Each interrupted the
+second turn after its first message delta while the turn was still active, then
+observed `interrupted` and exit code 0.
+
+The initial macOS probe exceeded its 15-second MCP status query deadline before
+starting a turn. A bounded retry allowed up to 90 seconds for that query and
+returned in 12.9 seconds. This timeout change applies only to the private probe;
+the product's connection check does not query MCP status and retains its existing
+deadline. Installed Codex 0.167.0 was also checked on macOS and returned
+`CODEX_VERSION_UNSUPPORTED`; the tested compatibility set remains 0.164.0.
 
 The probe disabled hooks, apps, plugins, shell tools and native subagents. An
 empty `mcp_servers={}` override did **not** remove configured servers, so the probe

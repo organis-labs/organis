@@ -80,6 +80,12 @@ sender/frame check. Quitting waits for any pending connection check to close.
   provider installation. CLI tests run without Electron or a display.
 - Windows live verification with installed Codex 0.164.0 passed discovery, reported
   ChatGPT sign-in and sandbox readiness, and clean process exit.
+- macOS 26.2 arm64 passed the CLI connection check with Codex 0.164.0 and existing
+  Codex-managed sign-in. The actual Electron 45.2.3 desktop connection button
+  passed with renderer Node globals absent and no sandbox-disabling flags. The
+  harness stopped its own desktop process with SIGTERM (exit code 0). All 68 tests
+  passed using Node 24.22.2 and source revision
+  `e1988af9bad8ada081ed847de2e19d668b26220d`.
 - Ubuntu 24.04 x64 under WSL2 passed the CLI connection check after Codex's own
   device login. The actual Electron 45.2.3 desktop connection button also passed,
   without sandbox-disabling flags and with renderer Node access absent. Both used

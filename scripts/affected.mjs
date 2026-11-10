@@ -37,6 +37,39 @@ export function conservativeApps(files) {
   return [...selected].sort();
 }
 
+// Local builds package the working tree. Inspect the index and worktree separately
+// so a staged change reverted only on disk cannot hide a relevant input.
+export function workingTreeApps({ cwd = process.cwd(), invoke = spawnSync } = {}) {
+  function run(args) {
+    const result = invoke('git', args, { cwd, encoding: 'utf8', timeout: 120000,
+      maxBuffer: 8 * 1024 * 1024, windowsHide: true });
+    if (result.error || result.status !== 0) throw new Error('Working-tree inspection failed');
+    return result.stdout;
+  }
+  const changed = new Set();
+  try {
+    for (const staged of [true, false]) {
+      const files = run(['diff', '--name-only', '--no-renames', '-z',
+        ...(staged ? ['--cached', 'HEAD'] : [])]).split('\0').filter(Boolean);
+      for (const file of files) {
+        if (docsOnly(file)) continue;
+        if (['apps/cli/package.json', 'apps/desktop/package.json', 'package-lock.json'].includes(file)) {
+          try {
+            const before = run(['show', `${staged ? 'HEAD' : ''}:${file}`]);
+            const after = staged ? run(['show', `:${file}`]) : readFileSync(resolve(cwd, file), 'utf8');
+            if (versionOnly(file, before, after)) continue;
+          } catch { /* Missing or invalid metadata is a product change. */ }
+        }
+        changed.add(file);
+      }
+    }
+    for (const file of run(['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)) {
+      changed.add(file);
+    }
+    return conservativeApps([...changed]);
+  } catch { return [...apps]; }
+}
+
 export function planAffected({ base, head, cwd = process.cwd(), invoke = spawnSync }) {
   const fallback = reason => ({ schemaVersion: 1, base, head, apps: [...apps], reason });
   function run(command, args) {

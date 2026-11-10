@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { planAffected } from './affected.mjs';
+import { planAffected, workingTreeApps } from './affected.mjs';
 
 const options = { base: 'origin/main', head: 'HEAD', dryRun: false };
 const args = process.argv.slice(2);
@@ -23,6 +23,9 @@ function commit(ref) {
 const head = commit(options.head);
 if (head !== commit('HEAD')) throw new Error('Build the checked-out HEAD; switch checkouts before selecting another head');
 const plan = planAffected({ base: commit(options.base), head });
+const localApps = workingTreeApps();
+plan.apps = [...new Set([...plan.apps, ...localApps])].sort();
+if (localApps.length) plan.reason += '+working-tree';
 console.log(JSON.stringify(plan));
 if (!options.dryRun && plan.apps.length) {
   const require = createRequire(import.meta.url);

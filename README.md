@@ -42,6 +42,9 @@ inputs and version-only release bookkeeping. CLI changes affect CLI, desktop
 changes affect desktop, and runtime changes affect both. Documentation-only
 changes skip packaging. Shared tooling/lockfile changes or uncertain history
 select both apps. Nx runs locally without Nx Cloud or an account.
+The local `build:affected` command also includes staged, unstaged and untracked
+files (excluding Git-ignored files), with the same documentation and version-only
+filters. CI continues to compare immutable commits only.
 
 `verify:platform` builds development application directories with the same runtime
 resources and standalone CLI, then exercises completion, persistence, duplicate

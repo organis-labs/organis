@@ -163,16 +163,26 @@ export class ProjectRegistry {
     if (rows.some(row => row.identity === target.identity && row.id !== existing?.id)) {
       throw invalid('This target is already registered under another path.');
     }
-    if (this.#project(id).identity !== project.identity) throw invalid('Project registration changed. Refresh and try again.');
-    const record = existing
-      ? this.#db.prepare(`
-        UPDATE OR IGNORE project_paths SET identity=?, access=? WHERE id=? AND identity=?
-        RETURNING id, path, identity, kind, access
-      `).get(target.identity, access, existing.id, existing.identity)
-      : this.#db.prepare(`
-        INSERT OR IGNORE INTO project_paths VALUES(?,?,?,?,?,?) RETURNING id, path, identity, kind, access
-      `).get(randomUUID(), id, target.path, target.identity, target.kind, access);
-    if (!record) throw invalid('Path registration changed. Refresh and try again.');
+    // Serialize the final project check and path write with rebinds and deletes.
+    // Filesystem probes above must finish before taking the database write lock.
+    this.#db.exec('BEGIN IMMEDIATE');
+    let record;
+    try {
+      if (this.#project(id).identity !== project.identity) throw invalid('Project registration changed. Refresh and try again.');
+      record = existing
+        ? this.#db.prepare(`
+          UPDATE OR IGNORE project_paths SET identity=?, access=? WHERE id=? AND identity=?
+          RETURNING id, path, identity, kind, access
+        `).get(target.identity, access, existing.id, existing.identity)
+        : this.#db.prepare(`
+          INSERT OR IGNORE INTO project_paths VALUES(?,?,?,?,?,?) RETURNING id, path, identity, kind, access
+        `).get(randomUUID(), id, target.path, target.identity, target.kind, access);
+      if (!record) throw invalid('Path registration changed. Refresh and try again.');
+      this.#db.exec('COMMIT');
+    } catch (error) {
+      if (this.#db.isTransaction) this.#db.exec('ROLLBACK');
+      throw error;
+    }
     return snapshot(record);
   }
 

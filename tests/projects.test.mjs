@@ -125,6 +125,79 @@ test('case aliases share a registration only on a filesystem that resolves them 
   }
 });
 
+test('a competing writer cannot rebind or delete the project between its final read and path save', async t => {
+  const { workspace, file, state } = setup(t);
+  const registry = new ProjectRegistry(state);
+  const competitor = new DatabaseSync(join(state, 'projects.sqlite'));
+  try {
+    const project = await registry.addProject(workspace);
+    competitor.exec('PRAGMA busy_timeout=0');
+    const rebind = competitor.prepare('UPDATE projects SET identity=? WHERE id=?');
+    const remove = competitor.prepare('DELETE FROM projects WHERE id=?');
+    let projectReads = 0;
+    const prepare = DatabaseSync.prototype.prepare;
+    t.mock.method(DatabaseSync.prototype, 'prepare', function (sql) {
+      const statement = prepare.call(this, sql);
+      if (this === competitor || sql !== 'SELECT * FROM projects WHERE id=?') return statement;
+      return {
+        get(...args) {
+          const row = statement.get(...args);
+          // Force the competing write at the exact read/write boundary.
+          if (++projectReads === 2) {
+            assert.throws(() => rebind.run('new-project-identity', project.id), { errcode: 5 });
+            assert.throws(() => remove.run(project.id), { errcode: 5 });
+          }
+          return row;
+        }
+      };
+    });
+    const saved = await registry.setPath(project.id, file, 'write');
+    assert.equal(projectReads, 2);
+    assert.equal(rebind.run('new-project-identity', project.id).changes, 1);
+    assert.deepEqual((await registry.preview(project.id)).paths, [saved]);
+  } finally {
+    competitor.close();
+    registry.close();
+  }
+});
+
+for (const operation of ['rebind', 'delete']) {
+  test(`a project ${operation} before the path write lock aborts the stale save`, async t => {
+    const { workspace, file, state } = setup(t);
+    const registry = new ProjectRegistry(state);
+    const competitor = new DatabaseSync(join(state, 'projects.sqlite'), { enableForeignKeyConstraints: true });
+    try {
+      const project = await registry.addProject(workspace);
+      const saved = await registry.setPath(project.id, file, 'read');
+      const exec = DatabaseSync.prototype.exec;
+      let raced = false;
+      t.mock.method(DatabaseSync.prototype, 'exec', function (sql) {
+        if (sql === 'BEGIN IMMEDIATE' && !raced) {
+          raced = true;
+          if (operation === 'rebind') {
+            competitor.prepare('UPDATE projects SET identity=? WHERE id=?').run('new-project-identity', project.id);
+          } else {
+            competitor.prepare('DELETE FROM projects WHERE id=?').run(project.id);
+          }
+        }
+        return exec.call(this, sql);
+      });
+      await assert.rejects(() => registry.setPath(project.id, file, 'write'), {
+        code: 'INVALID_ARGUMENT',
+        message: operation === 'rebind' ? /Project registration changed/ : /Project not found/
+      });
+      assert.equal(raced, true);
+      const rows = competitor.prepare('SELECT id, access FROM project_paths WHERE project_id=?').all(project.id);
+      assert.deepEqual(rows.map(row => ({ ...row })), operation === 'rebind' ? [{ id: saved.id, access: 'read' }] : []);
+      const current = await registry.addProject(workspace);
+      assert.equal((await registry.setPath(current.id, file, 'write')).access, 'write');
+    } finally {
+      competitor.close();
+      registry.close();
+    }
+  });
+}
+
 test('a newer project schema remains intact and separate from fixture state', t => {
   const { state } = setup(t);
   new ProjectRegistry(state).close();

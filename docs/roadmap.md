@@ -1,7 +1,7 @@
 # Organis product roadmap
 
 Updated: 2026-11-10. Status: M0 distribution baseline, M1 fixture implementation,
-and R03 Codex feasibility/connection checks;
+R03 Codex feasibility/connection checks, and the R04 project registry preview;
 later milestones remain a reviewable planning draft. Future milestones below
 are proposed sequencing, not implemented features, release promises, or approval
 to make security, licensing, hosting, or data-retention decisions.
@@ -177,7 +177,8 @@ host-native working folders, registered file/directory access and visible effect
 sandbox restrictions in both CLI and desktop. Approval modes are manual individual
 requests, bounded plan preapproval, automatic except risky actions, and explicit
 full access. Keep access boundaries separate from approval routing. This is a
-design requirement; the registry, approval engine and real execution are not yet
+design requirement. The registry stores requested path access and reports effective
+policy as unavailable. The approval engine and real execution are not yet
 implemented. Each mode must pass its enforcement gates before being offered.
 
 Deliver executable/version discovery, capability reporting, supported login handoff,

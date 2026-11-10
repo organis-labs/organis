@@ -25,3 +25,12 @@ contextBridge.exposeInMainWorld('organisUpdates', Object.freeze({
     return () => ipcRenderer.removeListener('updates:state', listener);
   }
 }));
+
+contextBridge.exposeInMainWorld('organisProjects', Object.freeze({
+  list: () => ipcRenderer.invoke('projects:list'),
+  preview: id => ipcRenderer.invoke('projects:preview', id),
+  pick: input => ipcRenderer.invoke('projects:pick', input),
+  save: input => ipcRenderer.invoke('projects:save', input),
+  removePath: input => ipcRenderer.invoke('projects:removePath', input),
+  removeProject: id => ipcRenderer.invoke('projects:removeProject', id)
+}));

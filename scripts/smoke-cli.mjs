@@ -26,6 +26,18 @@ export async function smokeCLI(executable, entry, { earlyInterrupt = false } = {
     if (connection.error || connection.status !== 1 || connection.stderr !== '') throw new Error('CLI connection diagnostic failed');
     const diagnostic = JSON.parse(connection.stdout);
     if (diagnostic.code !== 'CODEX_EXECUTABLE_INVALID' || diagnostic.capabilities.taskExecution !== false) throw new Error('CLI hid a missing Codex installation');
+    const project = args => {
+      const result = spawnSync(executable, [entry, 'project', ...args, '--state-dir', join(root, 'state'), '--json'],
+        { env, encoding: 'utf8', timeout: 10000, windowsHide: true });
+      if (result.error || result.status !== 0) throw new Error(`CLI project smoke failed: ${result.error?.message ?? result.stderr}`);
+      return JSON.parse(result.stdout);
+    };
+    const { project: { id: projectId } } = project(['add', workspace]);
+    project(['set-path', projectId, workspace, '--access', 'deny']);
+    const preview = project(['show', projectId]);
+    if (preview.effective !== null || preview.executionAvailable || preview.paths[0]?.access !== 'deny') {
+      throw new Error('CLI did not preserve requested access separately from enforcement');
+    }
     const commandId = randomUUID();
     const request = ['fixture', '--workspace', workspace, '--command-id', commandId];
     const first = invoke(request);

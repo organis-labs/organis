@@ -7,6 +7,10 @@ if (args.length === 0 || (args.length === 1 && ['--help', '-h'].includes(args[0]
   console.log(`Organis ${version}\n\nUsage:
   organis --version | status [--json] | update [--check]
   organis agent codex check [--executable <absolute-path>] [--json]
+  organis project list | add <directory> | show <id> | remove <id>
+  organis project set-path <id> <path> [--access read|write|deny]
+  organis project remove-path <id> <path-id>
+      project commands: [--state-dir <directory>] [--json]
   organis run fixture --workspace <directory> [--mode complete|fail|wait]
       [--duration <ms>] [--command-id <uuid>] [--state-dir <directory>] [--json]
   organis run list|reconcile [--state-dir <directory>] [--json]
@@ -23,10 +27,15 @@ CLI and desktop share ~/.organis/runtime unless --state-dir is supplied.`);
   const status = { ...getStatus(), version };
   console.log(args[1] === '--json' ? JSON.stringify(status) :
     `Organis ${status.version}\nStage: ${status.stage}\nPlatform: ${status.platform}/${status.arch}\nLocal fixture execution: available\nCodex connection check: available; agent execution: not implemented`);
-} else if (args[0] === 'agent') {
+} else if (['agent', 'project'].includes(args[0])) {
   try {
-    const { agentCommand } = await import('./agents.mjs');
-    await agentCommand(args.slice(1));
+    if (args[0] === 'agent') {
+      const { agentCommand } = await import('./agents.mjs');
+      await agentCommand(args.slice(1));
+    } else {
+      const { projectCommand } = await import('./projects.mjs');
+      await projectCommand(args.slice(1));
+    }
   } catch (error) {
     const code = error.code ?? 'RUNTIME_ERROR';
     console.error(args.includes('--json') ? JSON.stringify({ type: 'error', code, message: error.message }) : `${code}: ${error.message}`);

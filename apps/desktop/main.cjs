@@ -4,6 +4,7 @@ const { pathToFileURL } = require('node:url');
 const { createUpdateController } = require('./updates.cjs');
 const { createExecutionController } = require('./execution.cjs');
 const { createAgentController } = require('./agents.cjs');
+const { registerProjectHandlers } = require('./projects.cjs');
 const { mkdtempSync, mkdirSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 
@@ -114,6 +115,38 @@ function createWindow() {
           if ((await window.organisExecution.list()).length) throw new Error('Failed start created a run');
         })()`);
         mkdirSync(path.join(smokeRoot, 'workspace'));
+        writeFileSync(path.join(smokeRoot, 'workspace', 'context.txt'), 'Synthetic context');
+        await window.webContents.executeJavaScript(`(async () => {
+          const click = id => document.getElementById(id).click();
+          const idle = async () => {
+            const deadline = Date.now() + 5000;
+            while (document.querySelector('#refresh-projects').disabled) {
+              if (Date.now() > deadline) throw new Error('Project registry timed out');
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+          };
+          await idle();
+          click('pick-project');
+          await idle();
+          if (document.querySelector('#project-draft').hidden) throw new Error('Project confirmation missing');
+          click('save-project-path');
+          await idle();
+          const id = document.querySelector('#saved-project').value;
+          if (!id) throw new Error('Project was not selected after registration');
+          click('pick-project-file');
+          await idle();
+          click('save-project-path');
+          await idle();
+          const preview = await window.organisProjects.preview(id);
+          if (preview.executionAvailable || preview.effective !== null || preview.paths[0]?.kind !== 'file'
+              || preview.paths[0].access !== 'read' || !document.querySelector('#project-details').textContent.includes('Effective policy unavailable')) {
+            throw new Error('Unexpected project permission preview');
+          }
+          click('remove-project');
+          await idle();
+          if ((await window.organisProjects.list()).length) throw new Error('Project was not removed');
+        })()`);
+        console.log('ORGANIS_DESKTOP_PROJECT_REGISTRY_SMOKE_OK');
         await window.webContents.executeJavaScript(`(async () => {
           const wait = async predicate => {
             const deadline = Date.now() + 15000;
@@ -157,6 +190,11 @@ app.whenReady().then(async () => {
   agents = await createAgentController({ app, trustedSender, getWindow: () => mainWindow,
     smokeExecutable: smoke ? path.join(smokeRoot, 'codex-missing') : undefined });
   execution = await createExecutionController({
+    app, trustedSender, getWindow: () => mainWindow,
+    stateDir: smoke ? path.join(smokeRoot, 'state') : undefined,
+    smokeWorkspace: smoke ? path.join(smokeRoot, 'workspace') : undefined
+  });
+  registerProjectHandlers({
     app, trustedSender, getWindow: () => mainWindow,
     stateDir: smoke ? path.join(smokeRoot, 'state') : undefined,
     smokeWorkspace: smoke ? path.join(smokeRoot, 'workspace') : undefined

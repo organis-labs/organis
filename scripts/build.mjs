@@ -15,8 +15,17 @@ process.chdir(root);
 const meta = JSON.parse(await readFile('package.json', 'utf8'));
 const platform = process.platform;
 const arch = process.arch;
-const verificationOnly = process.argv.includes('--verify-only');
-if (process.argv.slice(2).some(arg => arg !== '--verify-only')) throw new Error('Unknown build option');
+const args = process.argv.slice(2);
+const verificationOnly = args.includes('--verify-only');
+let app = 'all';
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--verify-only') continue;
+  if (args[i] === '--app' && ['all', 'cli', 'desktop'].includes(args[i + 1])) { app = args[++i]; continue; }
+  throw new Error('Usage: build.mjs [--verify-only] [--app all|cli|desktop]');
+}
+const includeCLI = app !== 'desktop';
+const includeDesktop = app !== 'cli';
+if (app !== 'all') meta.version = JSON.parse(await readFile(`apps/${app}/package.json`, 'utf8')).version;
 if (!['win32-x64', 'linux-x64', 'darwin-arm64'].includes(`${platform}-${arch}`)) throw new Error(`Unsupported native target: ${platform}-${arch}`);
 if (process.versions.node !== meta.engines.node) throw new Error(`Use Node ${meta.engines.node}`);
 function run(command, args, options = {}) {
@@ -30,26 +39,30 @@ if (!/^[a-f0-9]{40}$/.test(sourceSha)) throw new Error('Invalid Git source commi
 if (process.env.ORGANIS_SOURCE_SHA && process.env.ORGANIS_SOURCE_SHA !== sourceSha) throw new Error('Source SHA mismatch');
 const sourceDirty = run('git', ['status', '--porcelain']).length > 0;
 if (process.env.CI && sourceDirty) throw new Error('CI builds require a clean source checkout');
-for (const path of ['apps/cli/package.json','apps/desktop/package.json','packages/runtime/package.json']) {
+for (const path of (app === 'all' ? ['apps/cli/package.json','apps/desktop/package.json'] : [`apps/${app}/package.json`])) {
   if (JSON.parse(await readFile(path, 'utf8')).version !== meta.version) throw new Error(`Version mismatch: ${path}`);
 }
 const target = `${platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux'}-${arch}`;
-const staging = join(root, '.build', verificationOnly ? `verify-${target}` : target);
-const output = join(root, 'dist', verificationOnly ? `verify-${target}` : target);
+const staging = join(root, '.build', verificationOnly ? `verify-${app === 'all' ? '' : `${app}-`}${target}` : app === 'all' ? target : `${app}/${target}`);
+const output = join(root, 'dist', verificationOnly ? `verify-${app === 'all' ? '' : `${app}-`}${target}` : app === 'all' ? target : `${app}/${target}`);
 const desktopOutput = join(staging, 'desktop');
 if (!/^\d+\.\d+\.\d+-beta\.[1-9]\d*$/.test(meta.version)) throw new Error('Release builds require a beta version such as 0.1.0-beta.1');
-if (!verificationOnly && platform === 'darwin' && !process.env.ORGANIS_MAC_SIGNING_IDENTITY) {
+if (includeDesktop && !verificationOnly && platform === 'darwin' && !process.env.ORGANIS_MAC_SIGNING_IDENTITY) {
   throw new Error('macOS releases require ORGANIS_MAC_SIGNING_IDENTITY for an existing Developer ID Application identity');
 }
-if (!verificationOnly && platform === 'darwin' && !process.env.ORGANIS_NOTARY_PROFILE) {
+if (includeDesktop && !verificationOnly && platform === 'darwin' && !process.env.ORGANIS_NOTARY_PROFILE) {
   throw new Error('macOS releases require ORGANIS_NOTARY_PROFILE for notarization');
 }
 await rm(staging, {recursive: true, force: true});
 await rm(output, {recursive: true, force: true});
 await mkdir(staging, {recursive: true});
 await mkdir(output, {recursive: true});
-const cliName = `organis-cli-${meta.version}-${target}`;
-const cliDir = join(staging, cliName);
+let cliName, cliDir, cliExecution;
+let signed = false;
+let notarized = false;
+if (includeCLI) {
+cliName = `organis-cli-${meta.version}-${target}`;
+cliDir = join(staging, cliName);
 await mkdir(cliDir, {recursive: true});
 for (const path of ['apps/cli', 'packages/runtime']) await cp(join(root, path), join(cliDir, path), {recursive: true});
 await cp(join(root, 'apps/cli/bootstrap.cjs'), join(cliDir, 'bootstrap.cjs'));
@@ -84,7 +97,9 @@ if (platform === 'win32') {
 }
 const cliResult = JSON.parse(run(join(cliDir, nodeName), [join(cliDir, 'bootstrap.cjs'), 'status', '--json']));
 if (cliResult.version !== meta.version || cliResult.platform !== platform || cliResult.arch !== arch) throw new Error('Packaged CLI smoke failed');
-const cliExecution = await smokeCLI(join(cliDir, nodeName), join(cliDir, 'bootstrap.cjs'), { earlyInterrupt: true });
+cliExecution = await smokeCLI(join(cliDir, nodeName), join(cliDir, 'bootstrap.cjs'), { earlyInterrupt: true });
+}
+if (includeDesktop) {
 // The optional profile references credentials already in this host's keychain.
 // Never export keys or copy credentials into a checkout or build artifact.
 if (!verificationOnly && platform === 'darwin' && process.env.ORGANIS_NOTARY_PROFILE) {
@@ -111,8 +126,6 @@ await buildDesktop({
 const appBundle = join(desktopOutput, 'mac-arm64', 'Organis.app');
 const executable = platform === 'win32' ? join(desktopOutput, 'win-unpacked', 'Organis.exe') :
   platform === 'darwin' ? join(appBundle, 'Contents/MacOS/Organis') : join(desktopOutput, 'linux-unpacked', 'organis');
-let signed = false;
-let notarized = false;
 if (!verificationOnly && platform === 'darwin') {
   run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appBundle]);
   const details = spawnSync('codesign', ['--display', '--verbose=4', appBundle], { encoding: 'utf8' });
@@ -134,14 +147,16 @@ const smokeResult = run(platform === 'linux' ? 'xvfb-run' : executable,
 if (!smokeResult.includes('ORGANIS_DESKTOP_SMOKE_OK')) throw new Error('Desktop renderer smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_EXECUTION_SMOKE_OK')) throw new Error('Desktop execution smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_CODEX_CHECK_SMOKE_OK')) throw new Error('Desktop Codex connection smoke marker missing');
+if (!smokeResult.includes('ORGANIS_DESKTOP_FEED_IMPORT_SMOKE_OK')) throw new Error('Desktop release feed import smoke marker missing');
 const unavailableSmokeResult = run(platform === 'linux' ? 'xvfb-run' : executable,
   platform === 'linux' ? ['-a', executable, '--ozone-platform=x11', '--smoke-runtime-unavailable'] : ['--smoke-runtime-unavailable'],
   { env: smokeEnv, timeout: 30000 });
 if (!unavailableSmokeResult.includes('ORGANIS_DESKTOP_UNAVAILABLE_SMOKE_OK')) throw new Error('Runtime failure recovery UI smoke marker missing');
+}
 if (verificationOnly) {
   const evidence = { schemaVersion: 1, kind: 'development-package-verification', sourceSha, sourceDirty,
-    target, node: process.versions.node, electron: meta.devDependencies.electron,
-    cli: cliExecution, desktop: { rendererIsolation: true, fixtureCompletion: true, fixtureCancellation: true, runtimeUnavailableUI: true, codexConnectionDiagnostic: true },
+    app, version: meta.version, target, node: process.versions.node, electron: meta.devDependencies.electron,
+    cli: cliExecution ?? null, desktop: includeDesktop ? { rendererIsolation: true, fixtureCompletion: true, fixtureCancellation: true, runtimeUnavailableUI: true, codexConnectionDiagnostic: true } : null,
     releaseSigningVerified: false, installerVerified: false };
   await writeFile(join(output, 'verification.json'), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));
@@ -154,7 +169,8 @@ async function archive(directory, name) {
   const bytes = await readFile(destination);
   return {file: name + extension, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex')};
 }
-const files = [await archive(cliDir, cliName)];
+const files = includeCLI ? [await archive(cliDir, cliName)] : [];
+if (includeDesktop) {
 const desktopName = `organis-desktop-${meta.version}-${target}`;
 const feed = platform === 'win32' ? 'beta.yml' : platform === 'darwin' ? 'beta-mac.yml' : 'beta-linux.yml';
 const requiredNames = platform === 'win32' ? [`${desktopName}.exe`, `${desktopName}.exe.blockmap`, feed] :
@@ -170,13 +186,14 @@ for (const name of [...requiredNames, ...optionalNames.filter(name => builtNames
   const bytes = await readFile(join(output, name));
   files.push({ file: name, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') });
 }
+}
 const manifest = {
-  schemaVersion: 1, product: 'Organis', version: meta.version,
+  schemaVersion: app === 'all' ? 1 : 2, ...(app === 'all' ? {} : { app }), product: 'Organis', version: meta.version,
   source: {repository: 'organis-labs/organis', sha: sourceSha, dirty: sourceDirty},
   target, platform, arch, node: process.versions.node, electron: meta.devDependencies.electron,
   lockfileSha256: createHash('sha256').update(await readFile('package-lock.json')).digest('hex'),
   builtAt: new Date().toISOString(), signed, notarized,
-  smoke: {cli: true, desktopRenderer: true, cliExecution, desktopExecution: true},
+  smoke: {cli: includeCLI, desktopRenderer: includeDesktop, ...(includeCLI ? { cliExecution } : {}), desktopExecution: includeDesktop},
   workflow: process.env.GITHUB_RUN_ID ? {repository: process.env.GITHUB_REPOSITORY, runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT} : null,
   files
 };

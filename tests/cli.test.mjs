@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { version } from '../packages/runtime/src/index.mjs';
+import { version } from '../apps/cli/src/version.mjs';
 
 const entry = fileURLToPath(new URL('../apps/cli/src/main.mjs', import.meta.url));
 const run = (...args) => spawnSync(process.execPath, [entry, ...args], { encoding: 'utf8' });

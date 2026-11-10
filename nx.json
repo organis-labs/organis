@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "namedInputs": {
+    "sharedBuild": [
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/package-lock.json",
+      "{workspaceRoot}/.node-version",
+      "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/NODE-LICENSE.txt",
+      "{workspaceRoot}/.github/workflows/**/*",
+      "{workspaceRoot}/scripts/**/*",
+      "{workspaceRoot}/tests/**/*"
+    ],
+    "default": ["{projectRoot}/**/*", "sharedBuild"]
+  },
+  "targetDefaults": {
+    "build": { "cache": false, "inputs": ["default", "^default"] },
+    "verify": { "cache": false, "inputs": ["default", "^default"] }
+  }
+}

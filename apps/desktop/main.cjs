@@ -164,11 +164,24 @@ app.whenReady().then(async () => {
   // Smoke builds load the same updater and its packaged dependencies without
   // making a network request. Missing production dependencies must fail CI.
   const packagedUpdater = app.isPackaged ? require('electron-updater').autoUpdater : null;
+  const feedLocation = app.isPackaged
+    ? path.join(process.resourcesPath, 'runtime/src/release-feed.mjs')
+    : path.join(__dirname, '../../packages/runtime/src/release-feed.mjs');
+  const loadFeedModule = () => import(pathToFileURL(feedLocation).href);
+  if (smoke && app.isPackaged) {
+    const { desktopFeed } = await loadFeedModule();
+    if (typeof desktopFeed !== 'function') throw new Error('Packaged release feed export unavailable');
+    console.log('ORGANIS_DESKTOP_FEED_IMPORT_SMOKE_OK');
+  }
   const disabledReason = smoke ? 'smoke-test' : !app.isPackaged ? 'development'
     : process.platform === 'linux' && !process.env.APPIMAGE ? 'appimage-required' : null;
   updates = createUpdateController({
     updater: disabledReason ? null : packagedUpdater,
     currentVersion: app.getVersion(), disabledReason,
+    resolveFeed: async () => {
+      const { desktopFeed } = await loadFeedModule();
+      return desktopFeed(app.getVersion());
+    },
     onState: state => {
       if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getURL() === documentURL) {
         mainWindow.webContents.send('updates:state', state);

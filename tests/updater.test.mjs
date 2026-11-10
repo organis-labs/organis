@@ -116,3 +116,36 @@ test('rejected automatic download becomes a recoverable error', async () => {
   assert.equal(f.controller.snapshot().phase, 'error');
   assert.equal(f.controller.install(), false);
 });
+
+test('component feed resolution precedes checks and restores downgrade protection', async () => {
+  const feed = { provider: 'generic', url: 'https://github.com/organis-labs/organis/releases/download/desktop-v0.1.0-beta.5/' };
+  const f = fixture({ resolveFeed: async () => feed });
+  f.updater.setFeedURL = value => { assert.equal(value, feed); f.updater.allowDowngrade = true; };
+  f.updater.checkForUpdates = async () => { assert.equal(f.updater.allowDowngrade, false); return {}; };
+  await f.controller.check();
+  assert.equal(f.controller.snapshot().phase, 'checking');
+});
+
+test('no app release is current while discovery failure is recoverable error', async () => {
+  const absent = fixture({ resolveFeed: async () => null });
+  await absent.controller.check();
+  assert.equal(absent.checks, 0);
+  assert.equal(absent.controller.snapshot().phase, 'current');
+  const failure = fixture({ resolveFeed: async () => { throw new Error('private API detail'); } });
+  await failure.controller.check();
+  assert.equal(failure.checks, 0);
+  assert.equal(failure.controller.snapshot().phase, 'error');
+  assert.ok(!JSON.stringify(failure.controller.snapshot()).includes('private'));
+});
+
+test('disposing during discovery prevents starting a download', async () => {
+  let finish;
+  const f = fixture({ resolveFeed: () => new Promise(resolve => { finish = resolve; }) });
+  const pending = f.controller.check();
+  await f.controller.check();
+  assert.equal(f.checks, 0);
+  f.controller.dispose();
+  finish({ provider: 'generic', url: 'https://example.invalid/' });
+  await pending;
+  assert.equal(f.checks, 0);
+});

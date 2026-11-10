@@ -13,8 +13,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  affected:
+    name: Resolve affected applications
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      apps: ${{ steps.plan.outputs.apps }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          base="$PR_BASE"
+          if [ -z "$base" ]; then
+            base=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/verify.yml/runs?branch=main&event=push&status=success&per_page=100" \
+              --jq ".workflow_runs | map(select(.head_sha != \"$GITHUB_SHA\")) | .[0].head_sha // empty")
+          fi
+          if [ -n "$base" ] && ! [[ "$base" =~ ^[a-f0-9]{40}$ ]]; then exit 1; fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+      - run: npm ci --ignore-scripts
+      - id: plan
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+          NX_DAEMON: 'false'
+          NX_NO_CLOUD: 'true'
+        run: |
+          node scripts/affected.mjs --base "$BASE_SHA" --head "$GITHUB_SHA" --json > "$RUNNER_TEMP/affected-ci.json"
+          node --input-type=module -e 'import fs from "node:fs"; const plan=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/affected-ci.json")); fs.appendFileSync(process.env.GITHUB_OUTPUT,"apps="+JSON.stringify(plan.apps)+"\n"); console.log(JSON.stringify(plan));'
+
   native:
     name: ${{ matrix.target }} desktop and CLI
+    needs: affected
     strategy:
       fail-fast: false
       matrix:
@@ -37,16 +79,17 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: node node_modules/electron/install.js
+        if: contains(fromJSON(needs.affected.outputs.apps), 'desktop')
       - run: node node_modules/esbuild/install.js
       - name: Configure Chromium sandbox on the disposable Linux runner
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && contains(fromJSON(needs.affected.outputs.apps), 'desktop')
         run: |
           # Allow user namespaces only for this packaged executable, following
           # Chromium's apparmor-userns-restrictions.md. Keep global protections on.
           sudo tee /etc/apparmor.d/organis-ci >/dev/null <<EOF
           abi <abi/4.0>,
           include <tunables/global>
-          profile organis-ci "$GITHUB_WORKSPACE/.build/verify-linux-x64/desktop/linux-unpacked/organis" flags=(unconfined) {
+          profile organis-ci "$GITHUB_WORKSPACE/.build/verify-desktop-linux-x64/desktop/linux-unpacked/organis" flags=(unconfined) {
             userns,
           }
           EOF
@@ -54,11 +97,15 @@ jobs:
       - name: Runtime, CLI and updater tests
         run: npm test
       - name: Verify packaged desktop and standalone CLI
-        run: npm run verify:platform
+        env:
+          AFFECTED_APPS: ${{ needs.affected.outputs.apps }}
+        run: node scripts/verify-affected.mjs "$AFFECTED_APPS"
+        shell: bash
       - name: Save platform verification evidence
+        if: needs.affected.outputs.apps != '[]'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: verification-${{ matrix.target }}
-          path: dist/verify-${{ matrix.target }}/verification.json
+          path: dist/verify-*-${{ matrix.target }}/verification.json
           if-no-files-found: error
           retention-days: 7

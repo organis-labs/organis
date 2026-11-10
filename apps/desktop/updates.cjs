@@ -3,7 +3,7 @@ const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 // Keep updater policy independent of Electron so failures and install guards can
 // be tested without accessing the network or modifying an installed application.
 function createUpdateController({ updater, currentVersion, disabledReason = null,
-  onState = () => {}, schedule = setInterval, cancel = clearInterval }) {
+  resolveFeed = null, onState = () => {}, schedule = setInterval, cancel = clearInterval }) {
   let state = { phase: disabledReason ? 'disabled' : 'idle', currentVersion,
     availableVersion: null, percent: null, disabledReason };
   let timer;
@@ -46,6 +46,14 @@ function createUpdateController({ updater, currentVersion, disabledReason = null
     if (disposed || disabledReason || ['checking', 'downloading', 'ready', 'installing'].includes(state.phase)) return snapshot();
     update({ phase: 'checking', percent: null, availableVersion: null });
     try {
+      if (resolveFeed) {
+        const feed = await resolveFeed();
+        if (disposed) return snapshot();
+        if (!feed) { update({ phase: 'current' }); return snapshot(); }
+        updater.setFeedURL(feed);
+        // Changing a feed/channel must never enable a downgrade implicitly.
+        updater.allowDowngrade = false;
+      }
       const result = await updater.checkForUpdates();
       // Download failures may arrive both as events and rejected promises.
       result?.downloadPromise?.catch(failed);

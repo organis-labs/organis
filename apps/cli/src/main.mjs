@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { getStatus, version } from '../../../packages/runtime/src/index.mjs';
+import { getStatus } from '../../../packages/runtime/src/index.mjs';
+import { version } from './version.mjs';
 
 const args = process.argv.slice(2);
 if (args.length === 0 || (args.length === 1 && ['--help', '-h'].includes(args[0]))) {
@@ -19,7 +20,7 @@ CLI and desktop share ~/.organis/runtime unless --state-dir is supplied.`);
 } else if (args.length === 1 && ['--version', '-v'].includes(args[0])) {
   console.log(version);
 } else if (args[0] === 'status' && (args.length === 1 || (args.length === 2 && args[1] === '--json'))) {
-  const status = getStatus();
+  const status = { ...getStatus(), version };
   console.log(args[1] === '--json' ? JSON.stringify(status) :
     `Organis ${status.version}\nStage: ${status.stage}\nPlatform: ${status.platform}/${status.arch}\nLocal fixture execution: available\nCodex connection check: available; agent execution: not implemented`);
 } else if (args[0] === 'agent') {

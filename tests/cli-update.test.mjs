@@ -13,12 +13,12 @@ const target = nativeTarget();
 const filename = `organis-cli-${version}-${target}.tar.gz`;
 const bytes = Buffer.from('synthetic archive');
 const metadata = { file: filename, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
-const manifest = { schemaVersion: 1, product: 'Organis', version, target,
+const manifest = { schemaVersion: 2, app: 'cli', product: 'Organis', version, target,
   source: { repository: 'organis-labs/organis', sha: 'a'.repeat(40), dirty: false }, smoke: { cli: true }, files: [metadata] };
 function release(ver = version) {
-  return { tag_name: `v${ver}`, draft: false, prerelease: true,
-    assets: [`manifest-${target}.json`, `organis-cli-${ver}-${target}.tar.gz`].map(name => ({ name,
-      browser_download_url: `https://github.com/organis-labs/organis/releases/download/v${ver}/${name}` })) };
+  return { tag_name: `cli-v${ver}`, draft: false, prerelease: true,
+    assets: [`cli-manifest-${target}.json`, `organis-cli-${ver}-${target}.tar.gz`].map(name => ({ name,
+      browser_download_url: `https://github.com/organis-labs/organis/releases/download/cli-v${ver}/${name}` })) };
 }
 
 test('beta selection rejects drafts, stable releases, equal versions and downgrades', () => {
@@ -26,7 +26,7 @@ test('beta selection rejects drafts, stable releases, equal versions and downgra
   assert.equal(selectRelease([release('0.1.0-beta.1'), release()], version), null);
   const candidates = [release(), { ...release('0.1.0-beta.4'), draft: true },
     { ...release('0.1.0-beta.5'), prerelease: false }, release('0.1.0-beta.3')];
-  assert.equal(selectRelease(candidates, '0.1.0-beta.1').tag_name, 'v0.1.0-beta.3');
+  assert.equal(selectRelease(candidates, '0.1.0-beta.1').tag_name, 'cli-v0.1.0-beta.3');
   assert.throws(() => compareVersions('../version', version), /Unsupported/);
 });
 
@@ -36,12 +36,13 @@ test('asset URLs are pinned to the release and public repository', () => {
   wrong.assets[1].browser_download_url = 'https://example.com/archive.tar.gz';
   assert.throws(() => assetURL(wrong, filename), /Invalid release asset/);
   wrong.assets.push(wrong.assets[0]);
-  assert.throws(() => assetURL(wrong, `manifest-${target}.json`), /Invalid release asset/);
+  assert.throws(() => assetURL(wrong, `cli-manifest-${target}.json`), /Invalid release asset/);
 });
 
 test('manifest requires the selected version, native target, clean source and digest', () => {
   assert.deepEqual(validateManifest(manifest, version, target), metadata);
   for (const invalid of [{ ...manifest, version: '0.1.0-beta.3' },
+    { ...manifest, schemaVersion: 1 }, { ...manifest, app: 'desktop' },
     { ...manifest, target: 'other-target' }, { ...manifest, source: { ...manifest.source, dirty: true } },
     { ...manifest, files: [{ ...metadata, sha256: '../invalid' }] }]) {
     assert.throws(() => validateManifest(invalid, version, target));

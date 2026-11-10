@@ -23,9 +23,28 @@ npm run build
 npm run verify:platform
 ```
 
-The native build packages both applications, runs CLI and desktop renderer smoke
-checks, and writes installers, update metadata, CLI archives, `manifest.json`,
-and `SHA256SUMS` under `dist/`. Build commands never publish a release.
+Nx models `cli`, `desktop` and their shared `runtime` dependency. `npm run build`
+packages both applications independently; `npm run build:cli` and
+`npm run build:desktop` package one app. Each runs its own smoke checks and writes
+assets, `manifest.json` and `SHA256SUMS` under `dist/<app>/<target>/`. Build commands
+never publish a release. Native signing and installer generation are not cached.
+
+To inspect changes before building:
+
+```sh
+npx nx show projects --affected --with-target build --base=origin/main --head=HEAD
+npm run build:affected -- --base=origin/main --head=HEAD --dry-run
+npm run build:affected -- --base=origin/main --head=HEAD
+```
+
+CI and `build:affected` use `scripts/affected.mjs` to combine Nx with conservative handling of unknown
+inputs and version-only release bookkeeping. CLI changes affect CLI, desktop
+changes affect desktop, and runtime changes affect both. Documentation-only
+changes skip packaging. Shared tooling/lockfile changes or uncertain history
+select both apps. Nx runs locally without Nx Cloud or an account.
+The local `build:affected` command also includes staged, unstaged and untracked
+files (excluding Git-ignored files), with the same documentation and version-only
+filters. CI continues to compare immutable commits only.
 
 `verify:platform` builds development application directories with the same runtime
 resources and standalone CLI, then exercises completion, persistence, duplicate
@@ -33,6 +52,32 @@ commands, failure and desktop cancellation. It does not sign, notarize, create
 installers or publish. The PR workflow runs this on GitHub-hosted Windows x64,
 macOS arm64 and Linux x64 runners without maintainer secrets or personal hosts.
 Its result is package/runtime verification, not release-installation acceptance.
+All three OS jobs retain their required check names and run tests; packaging runs
+only for selected apps. Independent outputs use `dist/verify-<app>-<target>/`.
+
+## Independent releases and existing installations
+
+Each app owns its version in `apps/<app>/package.json`. Future releases use
+`cli-v<version>` and `desktop-v<version>` tags and contain only that app's three
+native targets. Runtime/package root versions do not determine a client's version.
+The private coordinator compares each app against its last published source,
+bumps selected app versions and matching lockfile entries, waits for exact-source
+CI, and builds/publishes only those apps. Documentation alone causes no release.
+
+Migration requires the compatible infrastructure change to merge **before** this
+product change. `release-policy.json` reserves `v0.1.0-beta.4` as a one-time
+complete legacy bridge containing the new app-aware updaters. The legacy native
+entry point `node scripts/build.mjs` remains available for that bridge; after it,
+the coordinator/publisher use app-specific tags and schema 2 manifests. Do not
+publish another legacy `v*` release with incomplete assets. No published release
+is overwritten, and an app failure cannot authorize a partial three-OS release.
+
+Existing beta.3 installations can update to the bridge, then discover their own
+app releases. Old desktop clients read a bounded GitHub Atom feed and old CLI
+clients inspect only the first 100 releases. Once the bridge leaves those feeds,
+delayed users must install the bridge or a current app package manually. Keeping
+the bridge assets available does not remove that legacy discovery limit. The new
+updaters paginate app releases and report incomplete/error responses visibly.
 
 ## Local execution
 

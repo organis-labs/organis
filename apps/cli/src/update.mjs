@@ -4,36 +4,22 @@ import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { t as listTar, x as extractTar } from 'tar';
 
-const REPOSITORY = 'organis-labs/organis';
-const API = `https://api.github.com/repos/${REPOSITORY}/releases?per_page=100`;
+import { RELEASE_REPOSITORY as REPOSITORY, validVersion, compareVersions, releaseVersion, selectAppRelease, listAppReleases } from '../../../packages/runtime/src/release-feed.mjs';
+export { validVersion, compareVersions };
 const MAX_ARCHIVE = 256 * 1024 * 1024;
 const MAX_EXPANDED = 768 * 1024 * 1024;
-const betaPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-beta\.([1-9]\d*)$/;
-
-export function validVersion(value) {
-  return typeof value === 'string' && value.length <= 64 && betaPattern.test(value);
-}
-export function compareVersions(left, right) {
-  if (!validVersion(left) || !validVersion(right)) throw new Error('Unsupported beta version');
-  const a = left.match(betaPattern).slice(1).map(BigInt);
-  const b = right.match(betaPattern).slice(1).map(BigInt);
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
-  return 0;
-}
 export function nativeTarget(platform = process.platform, arch = process.arch) {
   const target = `${{ win32: 'windows', darwin: 'macos', linux: 'linux' }[platform]}-${arch}`;
   if (!['windows-x64', 'macos-arm64', 'linux-x64'].includes(target)) throw new Error('Unsupported update platform');
   return target;
 }
 export function selectRelease(releases, currentVersion) {
-  if (!Array.isArray(releases)) throw new Error('Invalid release response');
-  return releases.filter(release => !release.draft && release.prerelease === true
-    && typeof release.tag_name === 'string' && release.tag_name.startsWith('v')
-    && validVersion(release.tag_name.slice(1))
-    && compareVersions(release.tag_name.slice(1), currentVersion) > 0)
-    .sort((a, b) => compareVersions(b.tag_name.slice(1), a.tag_name.slice(1)))[0] ?? null;
+  return selectAppRelease(releases, 'cli', currentVersion);
 }
 export function assetURL(release, name) {
+  if (!releaseVersion(release?.tag_name, 'cli') || typeof name !== 'string' || !/^[A-Za-z0-9._-]+$/.test(name)) {
+    throw new Error('Invalid release asset');
+  }
   const candidates = release.assets?.filter(asset => asset.name === name) ?? [];
   const expected = `https://github.com/${REPOSITORY}/releases/download/${release.tag_name}/${name}`;
   if (candidates.length !== 1 || candidates[0].browser_download_url !== expected) throw new Error(`Invalid release asset: ${name}`);
@@ -41,7 +27,7 @@ export function assetURL(release, name) {
 }
 export function validateManifest(manifest, version, target) {
   const file = `organis-cli-${version}-${target}.tar.gz`;
-  if (manifest.schemaVersion !== 1 || manifest.product !== 'Organis' || manifest.version !== version
+  if (manifest.schemaVersion !== 2 || manifest.app !== 'cli' || manifest.product !== 'Organis' || manifest.version !== version
     || manifest.target !== target || manifest.source?.repository !== REPOSITORY
     || manifest.source.dirty !== false || !/^[a-f0-9]{40}$/.test(manifest.source.sha)
     || manifest.smoke?.cli !== true || !Array.isArray(manifest.files)) throw new Error('Release manifest does not match this update');
@@ -98,10 +84,10 @@ export async function updateCLI({ currentVersion, checkOnly = false, installRoot
   fetchImpl = fetch, log = console.log, target = nativeTarget(), replacePointer = rename }) {
   if (!validVersion(currentVersion)) throw new Error('CLI updates require a beta release build');
   if (!checkOnly && !installRoot) throw new Error('Self-update requires the bundled CLI launcher; source checkouts are not modified');
-  const release = selectRelease(await readJSON(API, 4 * 1024 * 1024, fetchImpl), currentVersion);
+  const release = selectRelease(await listAppReleases(fetchImpl), currentVersion);
   if (!release) { log(`Organis ${currentVersion} is up to date on the beta channel.`); return { updated: false }; }
-  const nextVersion = release.tag_name.slice(1);
-  const manifest = await readJSON(assetURL(release, `manifest-${target}.json`), 128 * 1024, fetchImpl);
+  const nextVersion = releaseVersion(release.tag_name, 'cli');
+  const manifest = await readJSON(assetURL(release, `cli-manifest-${target}.json`), 128 * 1024, fetchImpl);
   const archive = validateManifest(manifest, nextVersion, target);
   const url = assetURL(release, archive.file);
   if (checkOnly) { log(`Organis ${nextVersion} is available. Run organis update to install it.`); return { updated: false, availableVersion: nextVersion }; }

@@ -13,9 +13,10 @@ organis agent codex check
 organis help agent codex check
 ```
 
-Use `-h` or `--help` by itself or after a command name. Help prints to stdout and
-does not start a process, access saved run state, or check for updates. Unknown
-help topics exit with code 2. The CLI also accepts `-v` for `--version`.
+Use `-h` or `--help` by itself or as the last option of a command. For example,
+`organis agent codex check --json --help` still prints plain-text help. Help
+does not run the requested command. Unknown help topics exit with code 2.
+The CLI also accepts `-v` for `--version`.
 
 ## Codex connection check
 
@@ -23,7 +24,8 @@ help topics exit with code 2. The CLI also accepts `-v` for `--version`.
 organis agent codex check [--executable <absolute-path>] [--json]
 ```
 
-Organis currently checks Codex CLI **0.164.0**. The default is to find Codex on
+Run `organis agent codex check --help` to see which Codex CLI versions your Organis
+build accepts. The default is to find Codex on
 `PATH`. If more than one copy is installed, pass its absolute path and quote it
 if it contains spaces. Use the native `codex.exe` on Windows. Use a native Linux
 binary inside WSL2. If Codex reports that you are signed out, run `codex login`

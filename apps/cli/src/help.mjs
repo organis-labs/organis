@@ -87,8 +87,13 @@ Usage:
 
 Options:
   --state-dir <directory>  Use a separate runtime state directory.
-  --json                   Print newline-delimited JSON on stdout.
+  --json                   Print JSON records on stdout, one per line.
   --duration <ms>          Fixture duration (default: 250).
+  --mode <mode>            Fixture outcome (default: complete).
+  --scope trusted-workspace
+                           Acknowledge the fixture's trusted workspace scope.
+  --command-id <uuid>      Reuse for the same fixture or cancellation submission.
+  --after <sequence>       Show events after this exclusive cursor (default: 0).
 
 Example:
   organis run fixture --workspace . --json
@@ -112,11 +117,17 @@ const groupedCommands = {
 };
 
 export function getHelp(args) {
+  const hasHelpFlag = ['-h', '--help'].includes(args.at(-1));
   let topic;
   if (args.length === 0) topic = [];
-  else if (args[0] === 'help') topic = args.slice(1);
-  else if (['-h', '--help'].includes(args.at(-1))) topic = args.slice(0, -1);
-  else return undefined;
+  else if (args[0] === 'help') topic = args.slice(1, hasHelpFlag ? -1 : undefined);
+  else if (hasHelpFlag && !args.includes('--')) {
+    topic = args.slice(0, args.findIndex(arg => arg.startsWith('-')));
+    // A known run or project subcommand may already have positional arguments.
+    if (Object.hasOwn(groupedCommands, topic[0]) && groupedCommands[topic[0]].has(topic[1])) {
+      topic = topic.slice(0, 2);
+    }
+  } else return undefined;
 
   const key = topic.join(' ');
   const section = Object.hasOwn(sections, key) ? sections[key]

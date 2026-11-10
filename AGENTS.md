@@ -13,6 +13,10 @@ bootstrap applications, not a complete agent runtime.
 - Inspect package scripts before running checks. Verify affected behavior and
   report actual OS coverage rather than claiming untested platforms work.
 - Do not merge PRs or rewrite remote history without explicit user approval.
+- Write PR titles and descriptions, review summaries, inline comments, and review
+  replies in Korean by default. Include this language requirement when delegating
+  reviews to Claude, Codex, or another reviewer. Preserve required title prefixes,
+  template structure, code identifiers, commands, and quoted source text.
 
 Read README.md for the current layout and commands. More specific guidance applies
 within its directory. Preserve unrelated work and use synthetic test data.

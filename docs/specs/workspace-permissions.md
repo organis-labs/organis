@@ -297,6 +297,14 @@ are workspace write, command network disabled and manual approval. The effective
 policy and all execution modes remain unavailable. These metadata checks do not
 provide race-free filesystem authorization.
 
+The internal Codex 0.164.0 approval intake binds requests to one verified local
+connection, thread and active turn. It produces only decline responses or an
+empty turn-scoped permission response. Unknown methods, invalid correlation,
+non-local environments, repeated IDs and intake overflow stop the intake.
+The execution coordinator must stop its session on that outcome. This component
+has synthetic protocol tests and has no production transport or decision-store
+integration yet. It does not establish native sandbox or common risk gate coverage.
+
 This specification completes the policy-definition portion of R04, not R04/M2
 execution acceptance. Implement in this order:
 

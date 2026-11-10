@@ -81,6 +81,9 @@ updaters paginate app releases and report incomplete/error responses visibly.
 
 ## Local execution
 
+Run `organis --help` or `organis help agent codex check` for terminal help. The
+[CLI manual](docs/cli.md) lists commands, options and exit codes.
+
 Check an installed Codex CLI without starting a task:
 
 ```sh

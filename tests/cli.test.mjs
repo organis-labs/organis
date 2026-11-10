@@ -20,3 +20,22 @@ test('invalid commands fail instead of claiming to execute an agent', () => {
     const result = run(...args); assert.equal(result.status, 2); assert.match(result.stderr, /Unknown command/);
   }
 });
+
+test('root and command help explain Codex compatibility without running a check', () => {
+  const root = run('--help');
+  assert.equal(root.status, 0);
+  assert.match(root.stdout, /organis agent codex check --help/);
+  assert.match(root.stdout, /Codex connection checks support /);
+  for (const args of [['agent', 'codex', 'check', '--help'], ['help', 'agent', 'codex', 'check']]) {
+    const result = run(...args);
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, '');
+    assert.match(result.stdout, /Supported Codex CLI: /);
+    assert.match(result.stdout, /--executable <absolute-path>/);
+    assert.match(result.stdout, /codex login/);
+    assert.match(result.stdout, /does not run a task/);
+    assert.match(result.stdout, /docs\/cli\.md/);
+  }
+  assert.equal(run('help', 'agent', 'unknown').status, 2);
+  assert.equal(run('run', 'fixture', '-h').status, 0);
+});

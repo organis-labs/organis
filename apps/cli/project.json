@@ -1,0 +1,9 @@
+{
+  "name": "cli",
+  "projectType": "application",
+  "implicitDependencies": ["runtime"],
+  "targets": {
+    "build": { "executor": "nx:run-commands", "options": { "command": "node scripts/build.mjs --app cli" } },
+    "verify": { "executor": "nx:run-commands", "options": { "command": "node scripts/build.mjs --verify-only --app cli" } }
+  }
+}

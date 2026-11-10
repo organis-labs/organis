@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 2,
+  "legacyBridgeVersion": "0.1.0-beta.4",
+  "apps": ["cli", "desktop"]
+}

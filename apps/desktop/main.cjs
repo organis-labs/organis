@@ -169,6 +169,13 @@ app.whenReady().then(async () => {
   updates = createUpdateController({
     updater: disabledReason ? null : packagedUpdater,
     currentVersion: app.getVersion(), disabledReason,
+    resolveFeed: async () => {
+      const location = app.isPackaged
+        ? path.join(process.resourcesPath, 'runtime/src/release-feed.mjs')
+        : path.join(__dirname, '../../packages/runtime/src/release-feed.mjs');
+      const { desktopFeed } = await import(pathToFileURL(location).href);
+      return desktopFeed(app.getVersion());
+    },
     onState: state => {
       if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.getURL() === documentURL) {
         mainWindow.webContents.send('updates:state', state);

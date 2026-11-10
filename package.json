@@ -15,8 +15,11 @@
     "start": "electron apps/desktop",
     "cli": "node apps/cli/src/main.mjs",
     "test": "node --test tests/*.test.mjs",
-    "build": "node scripts/build.mjs",
-    "verify:platform": "node scripts/build.mjs --verify-only",
+    "build": "nx run-many -t build --projects=cli,desktop --parallel=1",
+    "build:cli": "nx run cli:build",
+    "build:desktop": "nx run desktop:build",
+    "build:affected": "nx affected -t build --parallel=1",
+    "verify:platform": "nx run-many -t verify --projects=cli,desktop --parallel=1",
     "smoke:desktop": "electron apps/desktop --smoke-test"
   },
   "overrides": {
@@ -27,6 +30,7 @@
     "electron": "45.2.3",
     "electron-builder": "26.18.0",
     "esbuild": "0.28.2",
+    "nx": "24.0.5",
     "tar": "7.5.22"
   }
 }

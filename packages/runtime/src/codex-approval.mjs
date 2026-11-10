@@ -9,7 +9,8 @@ const isIdentifier = value => typeof value === 'string' && value.length > 0 && v
 const isRequestId = value => Number.isSafeInteger(value) || isIdentifier(value);
 
 // One intake per verified local connection and active turn. The coordinator supplies
-// the binding out of band. The transport must stop the session on a stop result.
+// the binding out of band. Route only server requests here, separate from RPC
+// responses and notifications. Stop the session without replying on a stop result.
 export function createCodexApprovalIntake({ version, connectionId, threadId, turnId } = {}) {
   if (version !== '0.164.0' || ![connectionId, threadId, turnId].every(isIdentifier)) {
     throw new TypeError('Codex approval intake requires a supported version and an active turn binding.');

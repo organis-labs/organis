@@ -300,8 +300,11 @@ provide race-free filesystem authorization.
 The internal Codex 0.164.0 approval intake binds requests to one verified local
 connection, thread and active turn. It produces only decline responses or an
 empty turn-scoped permission response. Unknown methods, invalid correlation,
-non-local environments, repeated IDs and intake overflow stop the intake.
-The execution coordinator must stop its session on that outcome. This component
+non-local environments, repeated IDs and more than 256 requests per turn stop
+the intake. Route server-initiated requests separately from notifications and
+responses. The execution coordinator must record the first stop reason and
+stop its session without sending a reply on that outcome.
+This component
 has synthetic protocol tests and has no production transport or decision-store
 integration yet. It does not establish native sandbox or common risk gate coverage.
 

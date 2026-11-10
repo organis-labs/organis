@@ -9,6 +9,7 @@
   <script src="renderer.js" defer></script>
   <script src="execution.js" defer></script>
   <script src="agents.js" defer></script>
+  <script src="projects.js" defer></script>
 </head>
 <body>
   <main>
@@ -30,6 +31,29 @@
         </div>
         <p id="codex-path">Use Codex from this device’s PATH, or choose its executable.</p>
         <p id="codex-status" role="status" aria-live="polite">Not checked. Sign in through Codex in your terminal.</p>
+      </div>
+    </section>
+    <section id="projects" class="execution" aria-labelledby="projects-heading">
+      <div>
+        <h2 id="projects-heading">Project permissions</h2>
+        <p>Register a project and its context paths. These are local preferences for future agent runs.</p>
+        <div class="update-actions">
+          <label>Project <select id="saved-project"></select></label>
+          <button id="pick-project" type="button">Choose project folder</button>
+          <button id="refresh-projects" type="button">Refresh</button>
+          <button id="remove-project" type="button" disabled>Remove project and paths</button>
+        </div>
+        <div class="update-actions">
+          <button id="pick-project-file" type="button" disabled>Choose context file</button>
+          <button id="pick-project-folder" type="button" disabled>Choose context folder</button>
+        </div>
+        <div id="project-draft" hidden>
+          <p id="project-picked-path"></p>
+          <label>Requested access <select id="project-access"><option value="read">Read</option><option value="write">Write (includes read)</option><option value="deny">Deny</option></select></label>
+          <button id="save-project-path" type="button">Save</button>
+        </div>
+        <div id="project-details"></div>
+        <p id="project-status" role="status">Loading project registry…</p>
       </div>
     </section>
     <section class="execution" aria-labelledby="execution-heading">

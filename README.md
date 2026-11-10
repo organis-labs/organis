@@ -95,6 +95,31 @@ On Windows select the native `codex.exe`, not an npm `.cmd` shim. Sign in throug
 automatically. See the [connection contract](docs/specs/codex-connection-check.md)
 for error handling, privacy and actual platform coverage.
 
+### Project permissions preview
+
+The desktop **Project permissions** panel and the CLI share a local registry.
+Select a project folder, then register context files or directories with
+requested read, write or deny access. The default for a new path is read.
+A registration lasts until removed. Removing a project removes its path
+registrations. These operations leave workspace files untouched.
+
+```sh
+organis project add /absolute/path/to/project --json
+organis project list --json
+organis project set-path <project-id> /absolute/path/to/file --access read --json
+organis project show <project-id> --json
+organis project remove-path <project-id> <path-id>
+organis project remove <project-id>
+```
+
+The registry stores canonical paths and metadata in `projects.sqlite` under
+`~/.organis/runtime`, separately from the fixture run database so the CLI and
+desktop can update independently. Preview shows requested settings and marks
+missing or changed targets. Effective permissions are unavailable until native
+enforcement is verified. Project registration does not start or authorize a run.
+
+### Fixture runs
+
 In the desktop app, choose a trusted workspace and start a test. Select Complete,
 Fail or Wait for cancellation, then inspect the saved run and events. Cancelling
 is a request until process termination is confirmed. Quitting the desktop requests

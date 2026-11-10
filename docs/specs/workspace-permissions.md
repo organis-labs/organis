@@ -1,8 +1,8 @@
 # Workspace permissions and approval modes
 
-Status: R04 design contract, 2026-11-10. The current product implements Codex
-connection checks and fixture execution only. This document does not enable real
-agent execution, migrate storage, or claim sandbox enforcement on any OS.
+Status: R04 registry and preview implemented. The current product implements Codex
+connection checks and fixture execution. The registry does not enable real
+agent execution or claim sandbox enforcement on any OS.
 
 ## User-facing contract
 
@@ -283,6 +283,15 @@ separate capability/grant handling; keep them disabled for the initial execution
 slice. A filesystem sandbox is not authority for those external surfaces.
 
 ## Implementation order and acceptance
+
+The first registry slice stores canonical host paths and requested read, write
+or deny access. CLI and desktop share the versioned `projects.sqlite` database in
+the runtime state directory. Its schema is separate from the fixture run store
+for independent client upgrades. Preview checks the currently recorded target
+identity and reports missing or changed targets. The requested project defaults
+are workspace write, command network disabled and manual approval. The effective
+policy and all execution modes remain unavailable. These metadata checks do not
+provide race-free filesystem authorization.
 
 This specification completes the policy-definition portion of R04, not R04/M2
 execution acceptance. Implement in this order:

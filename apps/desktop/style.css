@@ -28,3 +28,6 @@ select { font: inherit; padding: 8px; max-width: 100%; }
 .run-link { background: #e7e9df; color: #303330; text-align: left; flex: 1; }
 #run-events { max-height: 260px; overflow: auto; font-size: 12px; }
 .execution-note { margin-top: 16px; }
+
+#projects label[hidden] { display: none; }
+#project-picked-path, #project-details li { overflow-wrap: anywhere; }

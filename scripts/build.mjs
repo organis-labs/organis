@@ -145,6 +145,7 @@ const smokeResult = run(platform === 'linux' ? 'xvfb-run' : executable,
   platform === 'linux' ? ['-a', executable, '--ozone-platform=x11', '--smoke-test'] : ['--smoke-test'],
   {env: smokeEnv, timeout: 60000});
 if (!smokeResult.includes('ORGANIS_DESKTOP_SMOKE_OK')) throw new Error('Desktop renderer smoke marker missing');
+if (!smokeResult.includes('ORGANIS_DESKTOP_PROJECT_REGISTRY_SMOKE_OK')) throw new Error('Desktop project registry smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_EXECUTION_SMOKE_OK')) throw new Error('Desktop execution smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_CODEX_CHECK_SMOKE_OK')) throw new Error('Desktop Codex connection smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_FEED_IMPORT_SMOKE_OK')) throw new Error('Desktop release feed import smoke marker missing');

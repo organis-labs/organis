@@ -18,7 +18,7 @@
     "build": "nx run-many -t build --projects=cli,desktop --parallel=1",
     "build:cli": "nx run cli:build",
     "build:desktop": "nx run desktop:build",
-    "build:affected": "nx affected -t build --parallel=1",
+    "build:affected": "node scripts/build-affected.mjs",
     "verify:platform": "nx run-many -t verify --projects=cli,desktop --parallel=1",
     "smoke:desktop": "electron apps/desktop --smoke-test"
   },

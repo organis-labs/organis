@@ -33,10 +33,11 @@ To inspect changes before building:
 
 ```sh
 npx nx show projects --affected --with-target build --base=origin/main --head=HEAD
+npm run build:affected -- --base=origin/main --head=HEAD --dry-run
 npm run build:affected -- --base=origin/main --head=HEAD
 ```
 
-CI uses `scripts/affected.mjs` to combine Nx with conservative handling of unknown
+CI and `build:affected` use `scripts/affected.mjs` to combine Nx with conservative handling of unknown
 inputs and version-only release bookkeeping. CLI changes affect CLI, desktop
 changes affect desktop, and runtime changes affect both. Documentation-only
 changes skip packaging. Shared tooling/lockfile changes or uncertain history

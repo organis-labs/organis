@@ -102,7 +102,7 @@ cliExecution = await smokeCLI(join(cliDir, nodeName), join(cliDir, 'bootstrap.cj
 if (includeDesktop) {
 // The optional profile references credentials already in this host's keychain.
 // Never export keys or copy credentials into a checkout or build artifact.
-if (includeDesktop && !verificationOnly && platform === 'darwin' && process.env.ORGANIS_NOTARY_PROFILE) {
+if (!verificationOnly && platform === 'darwin' && process.env.ORGANIS_NOTARY_PROFILE) {
   process.env.APPLE_KEYCHAIN_PROFILE = process.env.ORGANIS_NOTARY_PROFILE;
 }
 if (verificationOnly) process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
@@ -147,6 +147,7 @@ const smokeResult = run(platform === 'linux' ? 'xvfb-run' : executable,
 if (!smokeResult.includes('ORGANIS_DESKTOP_SMOKE_OK')) throw new Error('Desktop renderer smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_EXECUTION_SMOKE_OK')) throw new Error('Desktop execution smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_CODEX_CHECK_SMOKE_OK')) throw new Error('Desktop Codex connection smoke marker missing');
+if (!smokeResult.includes('ORGANIS_DESKTOP_FEED_IMPORT_SMOKE_OK')) throw new Error('Desktop release feed import smoke marker missing');
 const unavailableSmokeResult = run(platform === 'linux' ? 'xvfb-run' : executable,
   platform === 'linux' ? ['-a', executable, '--ozone-platform=x11', '--smoke-runtime-unavailable'] : ['--smoke-runtime-unavailable'],
   { env: smokeEnv, timeout: 30000 });

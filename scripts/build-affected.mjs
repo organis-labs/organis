@@ -17,7 +17,7 @@ for (let i = 0; i < args.length; i++) {
 function commit(ref) {
   const result = spawnSync('git', ['rev-parse', '--verify', '--end-of-options', `${ref}^{commit}`],
     { encoding: 'utf8', windowsHide: true });
-  if (result.status !== 0 || !/^[a-f0-9]{40}$/.test(result.stdout.trim())) throw new Error('Cannot resolve affected Git reference');
+  if (result.status !== 0 || !/^[a-f0-9]{40}$/.test(result.stdout.trim())) throw new Error(`Cannot resolve affected Git reference: ${ref}`);
   return result.stdout.trim();
 }
 const head = commit(options.head);

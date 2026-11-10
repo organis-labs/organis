@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, linkSync, mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -59,7 +59,7 @@ test('CLI and a separate registry connection share local requests without changi
   }
 });
 
-test('project aliases resolve to one canonical directory and replacement requires a fresh registration', async t => {
+test('project aliases resolve to one canonical directory and replacement can be explicitly rebound', async t => {
   const { root, workspace, file, state } = setup(t);
   const registry = new ProjectRegistry(state);
   try {
@@ -76,16 +76,50 @@ test('project aliases resolve to one canonical directory and replacement require
     writeFileSync(file, 'replacement');
     assert.equal((await registry.preview(project.id)).paths[0].status, 'changed');
     await assert.rejects(() => registry.setPath(project.id, file, 'deny', candidate), /selected target changed/);
-    await assert.rejects(() => registry.setPath(project.id, file, 'deny'), /Remove the changed path/);
-    registry.removePath(project.id, saved.id);
-    assert.equal((await registry.setPath(project.id, file, 'deny')).status, 'available');
+    const refreshed = await registry.setPath(project.id, file, 'deny');
+    assert.deepEqual(refreshed, { ...saved, access: 'deny', status: 'available' });
     const moved = join(root, 'old-project');
     renameSync(workspace, moved);
-    await assert.rejects(() => registry.addProject(moved), /Remove the moved project/);
+    await assert.rejects(() => registry.addProject(moved), /already registered under another path/);
     mkdirSync(workspace);
     assert.equal((await registry.preview(project.id)).project.status, 'changed');
     await assert.rejects(() => registry.setPath(project.id, workspace, 'read'), /project directory.*changed/);
-    await assert.rejects(() => registry.addProject(workspace), /Remove the changed project/);
+    const refreshedProject = await registry.addProject(workspace);
+    assert.deepEqual(refreshedProject, project);
+    const preview = await registry.preview(project.id);
+    assert.deepEqual(preview.paths, [{ ...refreshed, status: 'unavailable' }]);
+    writeFileSync(file, 'new file in the replacement workspace');
+    assert.equal((await registry.preview(project.id)).paths[0].status, 'changed');
+    assert.equal((await registry.setPath(project.id, file, 'deny')).id, saved.id);
+  } finally {
+    registry.close();
+  }
+});
+
+test('case aliases share a registration only on a filesystem that resolves them to the same entry', async t => {
+  const { root, workspace, file, state } = setup(t);
+  const directoryAlias = join(root, 'PROJECT WITH SPACES');
+  const fileAlias = join(workspace, 'CONTEXT.TXT');
+  const registry = new ProjectRegistry(state);
+  try {
+    const project = await registry.addProject(workspace);
+    const saved = await registry.setPath(project.id, file, 'write');
+    if (existsSync(directoryAlias)) {
+      t.diagnostic('Verified case-insensitive aliases on the native filesystem.');
+      assert.deepEqual(await registry.addProject(directoryAlias), project);
+      assert.deepEqual(await registry.setPath(project.id, fileAlias, 'deny'), { ...saved, access: 'deny' });
+      renameSync(file, join(workspace, 'old.txt'));
+      writeFileSync(file, 'replacement');
+      assert.equal((await registry.setPath(project.id, fileAlias, 'deny')).id, saved.id);
+      assert.equal((await registry.preview(project.id)).paths.length, 1);
+    } else {
+      t.diagnostic('Verified distinct case-sensitive entries on the native filesystem.');
+      mkdirSync(directoryAlias);
+      assert.notEqual((await registry.addProject(directoryAlias)).id, project.id);
+      linkSync(file, fileAlias);
+      await assert.rejects(() => registry.setPath(project.id, fileAlias, 'deny'), /already registered under another path/);
+      assert.deepEqual((await registry.preview(project.id)).paths, [saved]);
+    }
   } finally {
     registry.close();
   }

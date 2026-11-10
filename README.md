@@ -115,7 +115,11 @@ organis project remove <project-id>
 The registry stores canonical paths and metadata in `projects.sqlite` under
 `~/.organis/runtime`, separately from the fixture run database so the CLI and
 desktop can update independently. Preview shows requested settings and marks
-missing or changed targets. Effective permissions are unavailable until native
+missing or changed targets. Registering the same project folder again keeps its
+project ID and registered paths. After a context file is replaced, choose the
+same file again or run `project set-path` to confirm its new identity and requested
+access. A file-to-directory change requires a new path registration.
+Effective permissions are unavailable until native
 enforcement is verified. Project registration does not start or authorize a run.
 
 ### Fixture runs

@@ -25,10 +25,44 @@ const resolveTarget = async input => {
   }
 };
 
+async function samePath(first, second) {
+  if (first === second) return true;
+  if (first.toLowerCase() !== second.toLowerCase()) return false;
+  const firstRoot = path.parse(first).root;
+  const secondRoot = path.parse(second).root;
+  const parts = first.slice(firstRoot.length).split(path.sep);
+  const otherParts = second.slice(secondRoot.length).split(path.sep);
+  let parent = firstRoot;
+  for (const [index, part] of parts.entries()) {
+    if (part !== otherParts[index]) {
+      // Distinguish a case alias from two directory entries (including hard links).
+      const names = await fs.promises.readdir(parent);
+      if (names.includes(part) && names.includes(otherParts[index])) return false;
+    }
+    parent = path.join(parent, part);
+  }
+  return true;
+}
+
+async function registeredTarget(rows, target) {
+  const exact = rows.find(row => row.path === target.path);
+  if (exact) return exact;
+  for (const row of rows) {
+    if (row.path.toLowerCase() !== target.path.toLowerCase()) continue;
+    try {
+      const current = await resolveTarget(row.path);
+      if (current.identity === target.identity && await samePath(row.path, target.path)) return row;
+    } catch {
+      // An unverified alias must not select an existing registration.
+    }
+  }
+  return undefined;
+}
+
 async function availability(record) {
   try {
     const current = await resolveTarget(record.path);
-    return current.path === record.path && current.kind === record.kind && current.identity === record.identity
+    return current.kind === record.kind && current.identity === record.identity && await samePath(record.path, current.path)
       ? 'available' : 'changed';
   } catch {
     return 'unavailable';
@@ -103,14 +137,17 @@ export class ProjectRegistry {
     const target = await resolveTarget(input);
     this.#checkTarget(target, expectedTarget);
     if (target.kind !== 'directory') throw invalid('A project must be a directory.');
-    if (this.#db.prepare('SELECT 1 FROM projects WHERE path=? AND identity<>?').get(target.path, target.identity)) throw invalid('Remove the changed project registration first.');
-    const project = this.#db.prepare(`
-      INSERT INTO projects VALUES(?,?,?)
-      ON CONFLICT(identity) DO UPDATE SET identity=excluded.identity
-      WHERE projects.path=excluded.path
-      RETURNING *
-    `).get(randomUUID(), target.path, target.identity);
-    if (!project) throw invalid('Remove the moved project registration first.');
+    const rows = this.#db.prepare('SELECT * FROM projects').all();
+    const existing = await registeredTarget(rows, target);
+    if (rows.some(row => row.identity === target.identity && row.id !== existing?.id)) {
+      throw invalid('This directory is already registered under another path.');
+    }
+    const project = existing
+      ? this.#db.prepare('UPDATE OR IGNORE projects SET identity=? WHERE id=? AND identity=? RETURNING *')
+        .get(target.identity, existing.id, existing.identity)
+      : this.#db.prepare('INSERT OR IGNORE INTO projects VALUES(?,?,?) RETURNING *')
+        .get(randomUUID(), target.path, target.identity);
+    if (!project) throw invalid('Project registration changed. Refresh and try again.');
     return snapshot({ ...project, kind: target.kind });
   }
 
@@ -120,16 +157,22 @@ export class ProjectRegistry {
     if (await availability(project) !== 'available') throw invalid('The project directory is unavailable or has changed.');
     const target = await resolveTarget(input);
     this.#checkTarget(target, expectedTarget);
-    if (this.#db.prepare('SELECT 1 FROM project_paths WHERE project_id=? AND path=? AND identity<>?').get(id, target.path, target.identity)) {
-      throw invalid('Remove the changed path registration first.');
+    const rows = this.#db.prepare('SELECT id, path, identity, kind, access FROM project_paths WHERE project_id=?').all(id);
+    const existing = await registeredTarget(rows, target);
+    if (existing && existing.kind !== target.kind) throw invalid('The path kind changed. Remove its registration before adding it again.');
+    if (rows.some(row => row.identity === target.identity && row.id !== existing?.id)) {
+      throw invalid('This target is already registered under another path.');
     }
-    const record = this.#db.prepare(`
-      INSERT INTO project_paths VALUES(?,?,?,?,?,?)
-      ON CONFLICT(project_id, identity) DO UPDATE SET access=excluded.access
-      WHERE project_paths.path=excluded.path
-      RETURNING id, path, identity, kind, access
-    `).get(randomUUID(), id, target.path, target.identity, target.kind, access);
-    if (!record) throw invalid('This target is already registered under another path.');
+    if (this.#project(id).identity !== project.identity) throw invalid('Project registration changed. Refresh and try again.');
+    const record = existing
+      ? this.#db.prepare(`
+        UPDATE OR IGNORE project_paths SET identity=?, access=? WHERE id=? AND identity=?
+        RETURNING id, path, identity, kind, access
+      `).get(target.identity, access, existing.id, existing.identity)
+      : this.#db.prepare(`
+        INSERT OR IGNORE INTO project_paths VALUES(?,?,?,?,?,?) RETURNING id, path, identity, kind, access
+      `).get(randomUUID(), id, target.path, target.identity, target.kind, access);
+    if (!record) throw invalid('Path registration changed. Refresh and try again.');
     return snapshot(record);
   }
 

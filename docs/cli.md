@@ -2,8 +2,8 @@
 
 ## Start here
 
-Use `organis.cmd` on Windows or `./organis` on macOS and Linux from the extracted
-release. The examples use `organis` on your PATH. In a source checkout, use
+From the extracted release, use `.\organis.cmd` in Windows PowerShell or
+`./organis` on macOS and Linux. The examples use `organis` on your PATH. In a source checkout, use
 `npm run cli --` in place of `organis`.
 
 ```sh
@@ -32,7 +32,7 @@ binary inside WSL2. If Codex reports that you are signed out, run `codex login`
 in your terminal and then repeat the check.
 
 ```powershell
-organis.cmd agent codex check --executable "C:\Tools\Codex\codex.exe" --json
+.\organis.cmd agent codex check --executable "C:\Tools\Codex\codex.exe" --json
 ```
 
 ```sh
@@ -47,9 +47,11 @@ organis.cmd agent codex check --executable "C:\Tools\Codex\codex.exe" --json
 | `130` | Interrupted |
 
 With `--json`, a completed check emits one diagnostic object to stdout, even
-when the check fails. Inspect `ok`, `code`, `version`, `authentication.status`
-and `capabilities`. Argument errors go to stderr. Windows also reports Codex's
-sandbox readiness. A successful check does not make a model request or prove
+when the check fails. Inspect `ok`, `code`, `version` and `capabilities`. Check
+that `authentication` is present before reading `authentication.status`. Early
+failures, such as a missing executable, can omit it. Argument errors go to
+stderr. Windows also reports Codex's sandbox readiness. A successful check does
+not make a model request or prove
 sandbox enforcement. Real task execution, interactive approval and session
 resume are unavailable. See the [connection contract](specs/codex-connection-check.md)
 for platform evidence and diagnostic behavior.
@@ -75,8 +77,15 @@ for platform evidence and diagnostic behavior.
 All `project` and `run` commands accept `--state-dir <directory>` and `--json`.
 The default state directory is `~/.organis/runtime`, shared with the desktop.
 Project commands print JSON, formatted by default and compact with `--json`.
-Fixture JSON output contains an acceptance record and a final result on separate
-lines. Saved project access records are preferences.
+Saved project access records are preferences.
+
+Fixture JSON output normally contains `accepted` followed by `result` on stdout.
+Ctrl+C while observing a duplicate submission, or a second interrupt while
+waiting for cancellation, can produce `observation-stopped` in place of `result`
+and exit with code 130. Termination remains unconfirmed in that case. A wait
+error such as `WAIT_TIMEOUT` can produce an `error` record on stderr after
+`accepted`, without a `result` on stdout. Inspect the exit code and use
+`organis run show <run-id>` to check the saved run state.
 
 The fixture accepts `--mode complete|fail|wait` (default `complete`),
 `--duration <ms>` (default `250`), `--scope trusted-workspace` and

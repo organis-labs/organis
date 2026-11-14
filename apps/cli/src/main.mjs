@@ -1,26 +1,15 @@
 #!/usr/bin/env node
 import { getStatus } from '../../../packages/runtime/src/index.mjs';
+import { getHelp } from './help.mjs';
 import { version } from './version.mjs';
 
 const args = process.argv.slice(2);
-if (args.length === 0 || (args.length === 1 && ['--help', '-h'].includes(args[0]))) {
-  console.log(`Organis ${version}\n\nUsage:
-  organis --version | status [--json] | update [--check]
-  organis agent codex check [--executable <absolute-path>] [--json]
-  organis project list | add <directory> | show <id> | remove <id>
-  organis project set-path <id> <path> [--access read|write|deny]
-  organis project remove-path <id> <path-id>
-      project commands: [--state-dir <directory>] [--json]
-  organis run fixture --workspace <directory> [--mode complete|fail|wait]
-      [--duration <ms>] [--command-id <uuid>] [--state-dir <directory>] [--json]
-  organis run list|reconcile [--state-dir <directory>] [--json]
-  organis run show|events|cancel <run-id> [--state-dir <directory>] [--json]
-      events: [--after <sequence>]   cancel: [--command-id <uuid>]
-
-Local execution foundation. Only the bundled deterministic fixture is supported.
-Trusted workspace scope is not an OS sandbox. Codex connection checks do not start tasks.
-Fixture --json emits an accepted record followed by a result; cancel acknowledges a request.
-CLI and desktop share ~/.organis/runtime unless --state-dir is supplied.`);
+const help = getHelp(args);
+if (help === null) {
+  console.error('Unknown help topic. Run organis --help for available commands.');
+  process.exitCode = 2;
+} else if (help !== undefined) {
+  console.log(help);
 } else if (args.length === 1 && ['--version', '-v'].includes(args[0])) {
   console.log(version);
 } else if (args[0] === 'status' && (args.length === 1 || (args.length === 2 && args[1] === '--json'))) {

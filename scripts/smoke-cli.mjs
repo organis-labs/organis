@@ -21,6 +21,11 @@ export async function smokeCLI(executable, entry, { earlyInterrupt = false } = {
     return result.stdout.trim().split('\n').map(line => JSON.parse(line));
   };
   try {
+    const help = spawnSync(executable, [entry, 'agent', 'codex', 'check', '--json', '--help'],
+      { env, encoding: 'utf8', timeout: 10000, windowsHide: true });
+    if (help.error || help.status !== 0 || help.stderr || !help.stdout.includes('Supported Codex CLI:')) {
+      throw new Error('Packaged CLI connection help failed');
+    }
     const connection = spawnSync(executable, [entry, 'agent', 'codex', 'check', '--executable', join(root, 'codex-missing'), '--json'],
       { env, encoding: 'utf8', timeout: 10000, windowsHide: true });
     if (connection.error || connection.status !== 1 || connection.stderr !== '') throw new Error('CLI connection diagnostic failed');

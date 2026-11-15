@@ -4,9 +4,10 @@ import { spawnSync } from 'node:child_process';
 import { access, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
-import { checkClaude, createClaudeChecker, formatClaudeLoginCommand, formatClaudeTerminalCommand } from '../packages/runtime/src/claude.mjs';
+import { checkClaude, createClaudeChecker, formatClaudeLoginCommand, formatClaudeTerminalCommand, runClaude } from '../packages/runtime/src/claude.mjs';
 
 const executable = await realpath(process.execPath);
 const profileRoot = await mkdtemp(path.join(tmpdir(), 'organis-claude-profile-test-'));
@@ -94,6 +95,34 @@ test('Claude Code checks distinguish explicit cancellation from timeout', async 
   assert.equal(requests.length, 0);
   assert.equal((await check({ executable })).code, 'CLAUDE_CHECK_TIMEOUT');
   assert.deepEqual(requests, [['--version']]);
+});
+
+test('aborting a native Claude check waits for the child to exit', async t => {
+  const readyPath = path.join(profileRoot, 'native-runner-ready');
+  const abort = new AbortController();
+  const reason = new Error('cancel synthetic native check');
+  const childScript = `
+    process.on('SIGTERM', () => {});
+    require('node:fs').writeFileSync(process.argv[1], String(process.pid));
+    setTimeout(() => {}, 15000);
+  `;
+  const result = runClaude(executable, ['--eval', childScript, readyPath], { signal: abort.signal })
+    .then(() => null, error => error);
+  t.after(() => { abort.abort(reason); return result; });
+
+  const deadline = AbortSignal.timeout(10000);
+  let pid;
+  while (!pid) {
+    try {
+      pid = Number(await readFile(readyPath, 'utf8'));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      await delay(20, undefined, { signal: deadline });
+    }
+  }
+  abort.abort(reason);
+  assert.equal(await result, reason);
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });
 
 test('native terminal instructions quote profile and executable paths for each shell', () => {

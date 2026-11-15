@@ -87,11 +87,22 @@ async function resolveClaude(executable, env) {
   throw fault(shim ? 'CLAUDE_SHIM_UNSUPPORTED' : explicit ? 'CLAUDE_EXECUTABLE_INVALID' : 'CLAUDE_NOT_FOUND');
 }
 
-function runClaude(executable, args, options) {
+export function runClaude(executable, args, { signal, ...options }) {
   return new Promise((resolve, reject) => {
+    signal.throwIfAborted();
+    let outcome;
     const child = execFile(executable, args, {
       ...options, shell: false, windowsHide: true, killSignal: 'SIGKILL', maxBuffer: 64 * 1024
     }, (error, stdout) => {
+      outcome = { error, stdout };
+    });
+    const abort = () => child.kill('SIGKILL');
+    signal.addEventListener('abort', abort, { once: true });
+    // execFile can report a process error before its pipes have closed.
+    child.once('close', () => {
+      signal.removeEventListener('abort', abort);
+      if (signal.aborted) return reject(signal.reason);
+      const { error, stdout } = outcome;
       if (error && typeof error.code !== 'number') {
         reject(fault(error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ? 'CLAUDE_PROTOCOL_ERROR' : 'CLAUDE_START_FAILED'));
       } else {

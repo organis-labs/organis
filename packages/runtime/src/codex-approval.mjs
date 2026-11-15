@@ -81,7 +81,8 @@ export function describeCodexApproval(method, params, patch) {
   });
   return { kind: stdin ? 'terminal-input' : 'command', cwd, command, targets,
     incomplete: !command || !cwd || params.command.length > 2048 || actions.length !== targets.length
-      || params.additionalPermissions != null || params.networkApprovalContext != null };
+      || params.additionalPermissions != null || params.networkApprovalContext != null
+      || params.proposedExecpolicyAmendment != null || params.proposedNetworkPolicyAmendments != null };
 }
 
 // One intake per verified local connection and active turn. The coordinator supplies

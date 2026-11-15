@@ -43,6 +43,7 @@ const sendQuestion = document.querySelector('#send-codex');
 const cancelQuestion = document.querySelector('#cancel-codex-turn');
 const finished = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 let questionRunId;
+let questionActionError = false;
 
 questionForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -51,6 +52,7 @@ questionForm.addEventListener('submit', async event => {
   if (!projectId) { questionStatus.textContent = 'Choose and register a project first.'; return; }
   const prompt = document.querySelector('#codex-prompt').value;
   sendQuestion.disabled = true;
+  questionActionError = false;
   answerView.hidden = true;
   questionStatus.textContent = 'Starting Codex…';
   try {
@@ -60,12 +62,13 @@ questionForm.addEventListener('submit', async event => {
     cancelQuestion.disabled = false;
     let result;
     do {
-      result = await window.organisExecution.codexResult(run.id);
-      if (finished.has(result.state)) break;
-      const status = result.state === 'awaiting_approval' ? 'Codex requested an action. You can cancel this read-only run.' :
+      result = await window.organisExecution.codexResult(run.id).catch(() => null);
+      if (result && finished.has(result.state)) break;
+      const status = !result ? 'Unable to check this run. Retrying…' :
+        result.state === 'awaiting_approval' ? 'Codex requested an action. You can cancel this read-only run.' :
         result.state === 'cancelling' ? 'Waiting for Codex to stop…' : 'Waiting for Codex…';
-      if (questionStatus.textContent !== status) questionStatus.textContent = status;
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!questionActionError && questionStatus.textContent !== status) questionStatus.textContent = status;
+      await new Promise(resolve => setTimeout(resolve, result ? 500 : 1000));
     } while (true);
     if (result.state === 'completed') {
       questionStatus.textContent = result.answer ? 'Answer received.' : 'Codex completed without a text answer.';
@@ -85,8 +88,16 @@ questionForm.addEventListener('submit', async event => {
 });
 
 cancelQuestion.addEventListener('click', async () => {
-  if (!questionRunId) return;
+  const runId = questionRunId;
+  if (!runId || cancelQuestion.disabled) return;
   cancelQuestion.disabled = true;
-  try { await window.organisExecution.cancel({ id: questionRunId, commandId: crypto.randomUUID() }); }
-  catch (error) { questionStatus.textContent = error.message; cancelQuestion.disabled = false; }
+  questionActionError = false;
+  questionStatus.textContent = 'Requesting cancellation…';
+  try { await window.organisExecution.cancel({ id: runId, commandId: crypto.randomUUID() }); }
+  catch (error) {
+    if (questionRunId !== runId) return;
+    questionActionError = true;
+    questionStatus.textContent = error.message;
+    cancelQuestion.disabled = false;
+  }
 });

@@ -36,6 +36,16 @@ export function codexEnvironment(source = process.env) {
     /^(PATH|HOME|USERPROFILE|SYSTEMROOT|WINDIR|TEMP|TMP|TMPDIR|COMSPEC|LOCALAPPDATA|APPDATA|PROGRAMFILES|PROGRAMFILES\(X86\)|PROGRAMDATA|CODEX_HOME|XDG_CONFIG_HOME|XDG_DATA_HOME|XDG_CACHE_HOME|LANG|LC_ALL)$/i.test(name)));
 }
 
+export function codexLoginEnvironment(source = process.env, platform = process.platform) {
+  const env = codexEnvironment(source);
+  if (platform === 'linux') {
+    for (const key of ['DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS']) {
+      if (typeof source[key] === 'string') env[key] = source[key];
+    }
+  }
+  return env;
+}
+
 export async function resolveCodex({ executable, env = process.env, platform = process.platform } = {}) {
   const paths = platform === 'win32' ? path.win32 : path.posix;
   const explicit = executable !== undefined;
@@ -140,7 +150,7 @@ export async function loginCodex({ executable, profile, signal, deviceAuth = fal
   if (profile === undefined) throw new TypeError('An Organis Codex profile is required.');
   const before = await checkCodex({ executable, profile, signal });
   if (!before.ok && !['CODEX_AUTH_REQUIRED', 'CODEX_SANDBOX_REQUIRED'].includes(before.code)) return before;
-  const { env, args } = await prepareCodexProfile(profile, codexEnvironment());
+  const { env, args } = await prepareCodexProfile(profile, codexLoginEnvironment());
   const abort = new AbortController();
   const cancel = () => abort.abort(fault('CODEX_CHECK_CANCELLED'));
   signal?.addEventListener('abort', cancel, { once: true });

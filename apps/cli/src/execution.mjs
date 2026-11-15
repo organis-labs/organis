@@ -21,11 +21,12 @@ export async function executionCommand(args) {
   const options = {};
   while (args.length) {
     const flag = args.shift();
-    const key = flag.startsWith('--') ? flag.slice(2) : '';
+    const inlinePrompt = flag.startsWith('--prompt=');
+    const key = inlinePrompt ? 'prompt' : flag.startsWith('--') ? flag.slice(2) : '';
     if (!allowed.includes(key) || Object.hasOwn(options, key)) throw usageError(`Unexpected option: ${flag}`);
     if (!valueOptions.has(key)) { options[key] = true; continue; }
-    const value = args.shift();
-    if (value === undefined || value.startsWith('--')) throw usageError(`Missing value for ${flag}`);
+    const value = inlinePrompt ? flag.slice('--prompt='.length) : args.shift();
+    if (value === undefined || (!inlinePrompt && value.startsWith('--'))) throw usageError(`Missing value for ${flag}`);
     options[key] = value;
   }
   if (command === 'fixture' && !options.workspace) throw usageError('--workspace is required.');

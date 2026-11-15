@@ -47,6 +47,7 @@ if (operation === '--version') {
           done('completed');
         }
         reply({ turn: { id: turnId, status: 'inProgress' } });
+        if (scenario === 'option-like-prompt') done(params.input?.[0]?.text === '--help' ? 'completed' : 'failed');
         if (scenario === 'failure') done('failed');
         if (scenario === 'approval') setTimeout(() => send({
           id: 'approve', method: 'item/commandExecution/requestApproval',

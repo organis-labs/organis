@@ -25,9 +25,9 @@ async function setup(t) {
   const args = (...command) => [cli, ...command, '--state-dir', state, '--json'];
   const query = async (...command) => JSON.parse((await execute(process.execPath, args(...command))).stdout);
   const { project: registration } = await query('project', 'add', project);
-  const start = (scenario, ...options) => {
+  const start = (scenario, promptArgs = ['--prompt', prompt]) => {
     const child = spawn(process.execPath, ['--import', preload,
-      ...args('run', 'codex', registration.id, '--executable', process.execPath, '--prompt', prompt, ...options)], {
+      ...args('run', 'codex', registration.id, '--executable', process.execPath, ...promptArgs)], {
       env: { ...process.env, ORGANIS_TEST_CODEX_SCENARIO: scenario },
       stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
     });
@@ -65,6 +65,19 @@ test('CLI records one completed Codex turn and a bounded answer with ordered eve
   assert.equal(events[4].turnId, 'fixture-turn');
   assert.deepEqual((await query('run', 'events', run.id, '--after', String(events[4].sequence))).events, events.slice(5));
   assert.doesNotMatch(JSON.stringify(events), /PRIVATE_PROMPT_MARKER|private-email-marker/);
+});
+
+test('CLI sends an inline option-like prompt as literal text', { timeout: 15000 }, async t => {
+  const { start, query, registration } = await setup(t);
+  const launched = start('option-like-prompt', ['--prompt=--help']);
+  await launched.next();
+  const { run } = await launched.next();
+  assert.equal((await launched.closed)[0], 0);
+  assert.equal(run.state, 'completed');
+  for (const args of [['--prompt'], ['--prompt='], ['--prompt=--help', '--prompt', 'duplicate']]) {
+    await assert.rejects(query('run', 'codex', registration.id, ...args), { code: 2 });
+  }
+  assert.equal((await query('run', 'list')).runs.length, 1);
 });
 
 test('CLI saves the provider failure and never submits a turn for an unverified policy', { timeout: 15000 }, async t => {

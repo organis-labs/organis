@@ -110,6 +110,7 @@ Usage:
 Uses signed-in Codex CLI ${testedCodexVersions.join(', ')} and a read-only,
 ephemeral turn with a 120-second limit. Shell commands and approval grants
 are disabled. This preview rejects projects with additional path rules.
+Use --prompt="--help" to send text that starts with --.
 Read-only does not limit reads to the project directory.
 Use a compatible Codex configuration without MCP server definitions.
 Use synthetic or otherwise shareable text. The prompt is sent to Codex and

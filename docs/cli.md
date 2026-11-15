@@ -101,6 +101,8 @@ for upgrade requirements.
 2. Register a trusted directory with `organis project add <absolute-directory> --json`.
 3. Use the returned project ID in
    `organis run codex <project-id> --prompt "Reply with READY" --json`.
+   For text that starts with `--`, use `--prompt=<text>`. For example,
+   `organis run codex <project-id> --prompt="--help"` sends the literal prompt.
 4. Inspect the returned run ID with `organis run show <run-id>` and
    `organis run events <run-id>`. Use `organis run cancel <run-id>` from another
    terminal or press Ctrl+C to request cancellation.

@@ -37,7 +37,8 @@ async function setup(t) {
   const start = (scenario, promptArgs = ['--prompt', prompt]) => {
     const child = spawn(process.execPath, ['--import', preload,
       ...args('run', 'codex', registration.id, '--executable', process.execPath, ...promptArgs)], {
-      env: { ...process.env, ORGANIS_TEST_CODEX_SCENARIO: scenario },
+      env: { ...process.env, HOME: root, USERPROFILE: root, CODEX_HOME: path.join(root, 'unused-profile'),
+        ORGANIS_TEST_CODEX_SCENARIO: scenario },
       stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true
     });
     const closed = once(child, 'close');

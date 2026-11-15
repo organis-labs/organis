@@ -192,7 +192,8 @@ app.whenReady().then(async () => {
   execution = await createExecutionController({
     app, trustedSender, getWindow: () => mainWindow,
     stateDir: smoke ? path.join(smokeRoot, 'state') : undefined,
-    smokeWorkspace: smoke ? path.join(smokeRoot, 'workspace') : undefined
+    smokeWorkspace: smoke ? path.join(smokeRoot, 'workspace') : undefined,
+    getCodexExecutable: agents.getExecutable
   });
   registerProjectHandlers({
     app, trustedSender, getWindow: () => mainWindow,

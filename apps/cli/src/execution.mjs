@@ -66,7 +66,7 @@ export async function executionCommand(args) {
   try {
     if (command === 'fixture' || command === 'codex') {
       const accepted = command === 'codex' ? await runtime.startCodex({
-        projectId: id, prompt: options.prompt, executable: options.executable, commandId: options['command-id']
+        projectId: id, prompt: options.prompt, executable: options.executable, commandId: options['command-id'], profile: 'cli'
       }) : await runtime.startFixture({
         workspace: resolve(options.workspace), commandId: options['command-id'],
         mode: options.mode ?? 'complete', durationMs: options.duration === undefined ? 250 : Number(options.duration),

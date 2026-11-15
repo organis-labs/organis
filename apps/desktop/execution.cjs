@@ -2,7 +2,7 @@ const { dialog, ipcMain } = require('electron');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 
-exports.createExecutionController = async ({ app, trustedSender, getWindow, stateDir, smokeWorkspace }) => {
+exports.createExecutionController = async ({ app, trustedSender, getWindow, stateDir, smokeWorkspace, getCodexExecutable }) => {
   const location = app.isPackaged
     ? path.join(process.resourcesPath, 'runtime', 'src', 'execution.mjs')
     : path.join(__dirname, '../../packages/runtime/src/execution.mjs');
@@ -30,6 +30,22 @@ exports.createExecutionController = async ({ app, trustedSender, getWindow, stat
       if (!options || !['complete', 'fail', 'wait'].includes(options.mode)
           || typeof options.commandId !== 'string') throw new Error('Invalid fixture request.');
       return runtime.startFixture({ workspace, mode: options.mode, commandId: options.commandId, scope: 'trusted-workspace' });
+    },
+    startCodex: async options => {
+      if (!options || typeof options.projectId !== 'string' || typeof options.commandId !== 'string') {
+        throw new Error('Select a registered project and enter a prompt.');
+      }
+      const { run: accepted } = await runtime.startCodex({
+        projectId: options.projectId, prompt: options.prompt, commandId: options.commandId,
+        executable: getCodexExecutable(), profile: 'desktop'
+      });
+      return accepted;
+    },
+    codexResult: id => {
+      const run = runtime.getRun(id);
+      if (run.mode !== 'codex-read-only') throw new Error('Select a Codex run.');
+      const answer = run.state === 'completed' ? runtime.events(id).find(event => event.type === 'codex_answer')?.text : undefined;
+      return { state: run.state, answer, errorCode: run.errorCode, ownershipRetained: run.ownershipRetained };
     },
     events: id => runtime.events(id),
     cancel: async options => {

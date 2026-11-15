@@ -31,3 +31,8 @@ select { font: inherit; padding: 8px; max-width: 100%; }
 
 #projects label[hidden] { display: none; }
 #project-picked-path, #project-details li { overflow-wrap: anywhere; }
+#codex-question { margin-top: 24px; }
+#codex-question label { margin: 12px 0 4px; }
+#codex-prompt { width: 100%; resize: vertical; padding: 8px; font: inherit; }
+#codex-turn-status { margin-top: 12px; }
+#codex-answer { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: #e7e9df; padding: 12px; border-radius: 8px; }

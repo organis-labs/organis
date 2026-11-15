@@ -19,18 +19,20 @@
     <p class="intro">A home for your agents.</p>
     <section aria-label="Development status">
       <span class="dot" aria-hidden="true"></span>
-      <div><h2>Local execution foundation</h2><p>Run a deterministic test task and inspect its saved progress. You can also check your Codex connection.</p></div>
+      <div><h2>Local execution foundation</h2><p>Run a deterministic test task and inspect its saved progress. You can also connect Codex and send a read-only question.</p></div>
     </section>
     <section class="execution" aria-labelledby="codex-heading">
       <div>
         <h2 id="codex-heading">Connect Codex</h2>
-        <p>Check your installed Codex CLI and its sign-in status. This does not start a task. Real agent execution is coming next.</p>
+        <p>Connect your ChatGPT account in the browser. Organis uses a separate Codex profile.</p>
         <div class="update-actions">
+          <button id="login-codex" type="button">Sign in to Codex</button>
+          <button id="cancel-codex-login" type="button" hidden>Cancel sign-in</button>
           <button id="check-codex" type="button">Check connection</button>
           <button id="choose-codex" type="button">Choose executable</button>
         </div>
         <p id="codex-path">Use Codex from this device’s PATH, or choose its executable.</p>
-        <p id="codex-status" role="status" aria-live="polite">Not checked. Sign in through Codex in your terminal.</p>
+        <p id="codex-status" role="status" aria-live="polite">Not checked.</p>
       </div>
     </section>
     <section id="projects" class="execution" aria-labelledby="projects-heading">
@@ -54,6 +56,18 @@
         </div>
         <div id="project-details"></div>
         <p id="project-status" role="status">Loading project registry…</p>
+        <form id="codex-question">
+          <h3>Ask Codex</h3>
+          <p>Choose a trusted project above. Codex receives your message and can respond in text. File writes and shell commands are disabled.</p>
+          <label for="codex-prompt">Message</label>
+          <textarea id="codex-prompt" rows="4" required></textarea>
+          <div class="update-actions">
+            <button id="send-codex" type="submit">Send read-only question</button>
+            <button id="cancel-codex-turn" type="button" hidden>Cancel question</button>
+          </div>
+          <p id="codex-turn-status" role="status"></p>
+          <pre id="codex-answer" aria-label="Codex answer" hidden></pre>
+        </form>
       </div>
     </section>
     <section class="execution" aria-labelledby="execution-heading">

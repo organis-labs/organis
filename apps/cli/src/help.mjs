@@ -19,7 +19,7 @@ Examples:
   organis agent codex check
   organis agent codex check --json
 
-Sign in with codex login if needed, then repeat the check.
+Sign in with organis agent codex login if needed, then repeat the check.
 On Windows, select the native codex.exe instead of a .cmd or .bat wrapper.
 Exit codes: 0 passed, 1 failed, 2 invalid arguments, 130 interrupted.`;
 
@@ -32,7 +32,7 @@ Usage:
 
 Commands:
   status   Show the Organis version, platform and available features.
-  agent    Check the installed Codex CLI and its reported sign-in state.
+  agent    Sign in to Codex or check the Organis CLI connection.
   project  Manage locally saved projects and requested path access.
   run      Run a read-only Codex task or fixture and inspect saved runs.
   update   Check for or install a CLI update.
@@ -51,6 +51,13 @@ Read-only Codex preview: organis run codex --help.`,
   agent: codexHelp,
   'agent codex': codexHelp,
   'agent codex check': codexHelp,
+  'agent codex login': `Sign in to Codex for Organis CLI using your ChatGPT account.
+
+Usage:
+  organis agent codex login [--executable <absolute-path>] [--device-auth]
+
+Codex opens its official sign-in page in your browser. Use --device-auth for
+Codex device-code sign-in on a headless host. This uses a separate Organis CLI profile.`,
   status: `Show local capabilities without contacting Codex.
 
 Usage:

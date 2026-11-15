@@ -85,9 +85,10 @@ updaters paginate app releases and report incomplete/error responses visibly.
 Run `organis --help` or `organis help agent codex check` for terminal help. The
 [CLI manual](docs/cli.md) lists commands, options and exit codes.
 
-Check an installed Codex CLI without starting a task:
+Sign in with Codex through Organis, then check the connection without starting a task:
 
 ```sh
+organis agent codex login
 organis agent codex check --json
 organis agent codex check --executable /absolute/path/to/codex --json
 ```
@@ -96,12 +97,12 @@ Use `organis run codex --help` to run a text task from the CLI and inspect its
 saved run and events. See the [read-only execution preview](docs/specs/codex-read-only.md)
 for supported settings and platform verification.
 
-The desktop offers **Check connection** and an executable picker. Currently the
-verified version is Codex **0.164.0**; other versions are reported as unverified.
-On Windows select the native `codex.exe`, not an npm `.cmd` shim. Sign in through
-`codex login` in your terminal. Organis does not import credentials or start login
-automatically. See the [connection contract](docs/specs/codex-connection-check.md)
-for error handling, privacy and actual platform coverage.
+In the desktop app, select **Sign in to Codex** and complete sign-in in your
+browser. Choose and register a trusted folder in **Project permissions**, then
+send a message under **Ask Codex**. Both clients require Codex **0.164.0** and
+keep independent Codex profiles. On Windows, use the native `codex.exe`.
+If Codex is missing from the desktop app's PATH, choose the executable explicitly.
+See the [read-only preview](docs/specs/codex-read-only.md) for scope and setup.
 
 ### Project permissions preview
 

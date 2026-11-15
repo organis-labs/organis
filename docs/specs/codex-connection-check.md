@@ -1,6 +1,6 @@
 # Codex connection check (R03)
 
-Status: implemented connection check; real task execution (R04/M2) is not enabled.
+Status: implemented connection check. See the [R04 read-only preview](codex-read-only.md) for login and task execution.
 Decision and protocol evidence: [first adapter](../decisions/first-agent-adapter.md).
 
 ## User flow
@@ -48,11 +48,11 @@ returned. The returned executable path is local diagnostic information.
 `ok: true` means the discovery protocol and reported authentication state passed;
 it does not validate token expiry by making a model request. `authentication.kind`
 reports Codex's `chatgpt` or `apiKey` mode. A provider that reports authentication
-unnecessary is represented separately. When authentication is needed, users run
-`codex login` through Codex's own terminal flow, then repeat the check. Organis does
-not run login/logout, read token files, import caches, accept an API key, or inherit
-API key environment variables. It retains `CODEX_HOME` when explicitly present so
-Codex can locate its own installation state.
+unnecessary is represented separately. When authentication is needed, start sign-in with `organis agent codex login` or
+**Sign in to Codex** in desktop, then repeat the check. These client flows select
+an isolated Codex home and expect a ChatGPT sign-in. Codex owns the credentials.
+When called without a client profile, the runtime diagnostic uses its inherited
+Codex home.
 
 The check never calls `thread/start`, `turn/start`, a tool, approval, login or
 configuration write. Unexpected server requests are rejected. It does not acquire
@@ -93,5 +93,5 @@ sender/frame check. Quitting waits for any pending connection check to close.
   official Linux Codex 0.164.0 binary. All 68 tests passed on this environment.
   WSL2 is not bare-metal Linux acceptance. Native CI checks implementation and
   packages with synthetic protocol responses; it does not use provider accounts.
-- Resuming sessions, interactive approvals, scoped file changes, general agent
-  execution and strong child-process containment remain R04 work.
+- Resuming sessions, scoped file changes and interactive permission grants are
+  outside the read-only preview.

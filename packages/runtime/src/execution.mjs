@@ -188,7 +188,7 @@ export class LocalRuntime {
     return this.#enqueue(target, { kind: 'startFixture', commandId, mode, durationMs, scope, roomId, participantId, payloadHash });
   }
 
-  async startCodex({ projectId, prompt, executable, commandId } = {}) {
+  async startCodex({ projectId, prompt, executable, commandId, profile } = {}) {
     if (this.#closing || this.#closed) throw new RuntimeError('RUNTIME_CLOSED', 'The runtime is closed.');
     if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > 16384) {
       throw new RuntimeError('INVALID_ARGUMENT', 'The Codex prompt must contain 1 to 16384 UTF-8 bytes.');
@@ -199,15 +199,18 @@ export class LocalRuntime {
     if (executable !== undefined && (typeof executable !== 'string' || !path.isAbsolute(executable) || executable.includes('\0'))) {
       throw new RuntimeError('INVALID_ARGUMENT', 'Use an absolute path to the native Codex executable.');
     }
+    if (profile !== undefined && !['cli', 'desktop'].includes(profile)) {
+      throw new RuntimeError('INVALID_ARGUMENT', 'Invalid Organis Codex profile.');
+    }
     const { ProjectRegistry } = await import('./projects.mjs');
     const registry = new ProjectRegistry(this.#stateDir);
     let registration;
     try { registration = await registry.codexTarget(projectId); } finally { registry.close(); }
     const target = this.#resolveWorkspace(registration.workspace);
     if (target.fileId !== registration.fileId) throw new RuntimeError('INVALID_WORKSPACE', 'The project registration changed.');
-    const payloadHash = hash({ kind: 'startCodex', projectId, fileId: target.fileId, prompt, executable: executable ?? null });
+    const payloadHash = hash({ kind: 'startCodex', projectId, fileId: target.fileId, prompt, executable: executable ?? null, profile });
     return this.#enqueue(target, { kind: 'startCodex', commandId, mode: CODEX_MODE, durationMs: CODEX_DURATION_MS, scope: 'read-only',
-      payloadHash, codex: { projectId, executable, prompt, fileId: target.fileId } });
+      payloadHash, codex: { projectId, executable, prompt, profile, fileId: target.fileId } });
   }
 
   #enqueue({ canonical, key, fileId }, { kind, commandId, mode, durationMs, scope, roomId, participantId, payloadHash, codex }) {

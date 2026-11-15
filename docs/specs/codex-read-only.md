@@ -1,16 +1,33 @@
 
 # Codex read-only CLI preview
 
-R04 adds one ephemeral Codex 0.164.0 turn from the standalone CLI. The project ID
+R04 supports one ephemeral Codex 0.164.0 turn from the CLI or desktop. The project ID
 selects a trusted, registered, host-local working directory. The registry's
 workspace-write settings remain preferences. This preview supplies its own fixed
 policy and rejects registrations with additional path rules.
+
+## First login and first answer
+
+The CLI's `organis agent codex login` and desktop's **Sign in to Codex** invoke
+the installed Codex CLI's official login. Codex owns the callback and stores
+its credentials in the OS keyring on Windows and macOS. The CLI and desktop use
+separate Codex homes under `~/.organis/codex`. The child environment selects the
+appropriate home for login, connection checks and runs. The user can opt into
+Codex device-code login through the CLI for a headless host.
+
+Register and select a trusted project. Use `organis run codex` or the desktop's
+**Ask Codex** form to send a prompt. Desktop displays the saved answer after
+confirmed completion and can cancel via the same local runtime. On Windows both
+profiles select Codex's non-admin sandbox and still require readiness. Missing
+sign-in, unsupported executables and sandbox or turn failures are reported
+without returning the login response or credential data. Each prompt starts a
+new turn in a new ephemeral thread.
 
 ## Execution and records
 
 - The coordinator takes the same workspace lease used by fixture runs and
   checks the filesystem identity. A local worker uses the installed native
-  executable and the user's existing Codex sign-in. A Windows provider must
+  executable and the client's isolated ChatGPT sign-in. A Windows provider must
   report that its sandbox is ready. The runtime never imports login files.
 - The worker sets an explicit read-only sandbox, disables command network access,
   and accepts no expansion of authority. It starts the turn only after the
@@ -62,7 +79,7 @@ worker to interrupt the turn. The run deadline, unexpected turn termination
 and owner loss also invalidate pending requests. Recovery does not replay
 provider responses. Unverified termination continues to hold the workspace.
 
-This CLI flow keeps the provider's `never` approval policy and the read-only
-sandbox. Authority grants, writable execution and a desktop start command
-remain separate R04 work. The desktop continues to share the existing run
-database. CI exercises approval requests with a synthetic app-server.
+Both clients use the provider's `never` approval policy and the read-only
+sandbox. Authority grants and writable execution remain separate R04 work. The
+CLI can explicitly deny a pending request. Desktop can cancel the run. CI
+exercises approval requests with a synthetic app-server.

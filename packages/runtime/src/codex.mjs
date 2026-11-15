@@ -4,6 +4,7 @@ import { constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
+import { prepareCodexProfile } from './codex-profile.mjs';
 
 // Expand only after testing the installed CLI's stable protocol. A newer CLI is
 // not assumed compatible just because its version is greater.
@@ -20,6 +21,7 @@ const messages = Object.freeze({
   CODEX_EXIT_FAILED: 'Codex did not exit cleanly after the check. Check Codex locally before retrying.',
   CODEX_AUTH_REQUIRED: 'Sign in using codex login in your terminal, then check again.',
   CODEX_SANDBOX_REQUIRED: 'Finish Windows sandbox setup in Codex before running tasks.',
+  CODEX_LOGIN_FAILED: 'Codex sign-in did not complete. Close any other Codex login, then try again.',
   CODEX_AUTH_UNKNOWN: 'Codex returned an unknown authentication status. Check Codex locally.',
   CODEX_RUN_TIMEOUT: 'The Codex task exceeded its time limit.',
   CODEX_RUN_FAILED: 'The Codex turn did not complete.',
@@ -32,6 +34,16 @@ const fault = codexFault;
 export function codexEnvironment(source = process.env) {
   return Object.fromEntries(Object.entries(source).filter(([name]) =>
     /^(PATH|HOME|USERPROFILE|SYSTEMROOT|WINDIR|TEMP|TMP|TMPDIR|COMSPEC|LOCALAPPDATA|APPDATA|PROGRAMFILES|PROGRAMFILES\(X86\)|PROGRAMDATA|CODEX_HOME|XDG_CONFIG_HOME|XDG_DATA_HOME|XDG_CACHE_HOME|LANG|LC_ALL)$/i.test(name)));
+}
+
+export function codexLoginEnvironment(source = process.env, platform = process.platform) {
+  const env = codexEnvironment(source);
+  if (platform === 'linux') {
+    for (const key of ['DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS']) {
+      if (typeof source[key] === 'string') env[key] = source[key];
+    }
+  }
+  return env;
 }
 
 export async function resolveCodex({ executable, env = process.env, platform = process.platform } = {}) {
@@ -65,12 +77,13 @@ export async function resolveCodex({ executable, env = process.env, platform = p
 // No shell, terminal scraping, credential file access, or persistent session.
 // Injectable process dependencies and platform keep protocol tests portable.
 export function createCodexChecker({ launch = spawn, resolve = resolveCodex, timeoutMs = 15000, closeMs = 2000, platform = process.platform } = {}) {
-  return async function check({ executable, signal } = {}) {
+  return async function check({ executable, profile, signal } = {}) {
     let directory;
     let connection;
     let selected;
     let version;
-    const env = codexEnvironment();
+    let env;
+    let profileArgs;
     const abort = new AbortController();
     const cancel = () => abort.abort(fault('CODEX_CHECK_CANCELLED'));
     if (signal?.aborted) cancel(); else signal?.addEventListener('abort', cancel, { once: true });
@@ -79,6 +92,7 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
     try {
       abort.signal.throwIfAborted();
       selected = await resolve({ executable });
+      ({ env, args: profileArgs } = await prepareCodexProfile(profile, codexEnvironment()));
       directory = await mkdtemp(path.join(tmpdir(), 'organis-codex-check-'));
       abort.signal.throwIfAborted();
       connection = start(['--version']);
@@ -87,7 +101,7 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
       if (!testedCodexVersions.includes(version)) throw fault('CODEX_VERSION_UNSUPPORTED');
       await connection.close();
       connection = start(['app-server', '--stdio', '--disable', 'apps', '--disable', 'plugins',
-        '--disable', 'hooks', '--disable', 'multi_agent', '--disable', 'daemon_auto_start']);
+        '--disable', 'hooks', '--disable', 'multi_agent', '--disable', 'daemon_auto_start', ...profileArgs]);
       await connection.request('initialize', { clientInfo: { name: 'organis_connection_check', version: '0.1.0' }, capabilities: { experimentalApi: false } });
       connection.notify('initialized');
       const account = await connection.request('account/read', { refreshToken: false });
@@ -102,9 +116,12 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
         sandbox = readiness.status;
       }
       const authenticated = auth !== null;
-      const code = !authenticated && account.requiresOpenaiAuth ? 'CODEX_AUTH_REQUIRED'
+      const code = (profile ? auth?.type !== 'chatgpt' : !authenticated && account.requiresOpenaiAuth) ? 'CODEX_AUTH_REQUIRED'
         : sandbox !== 'not-checked' && sandbox !== 'ready' ? 'CODEX_SANDBOX_REQUIRED' : null;
-      result = { ok: !code, code, message: code ? messages[code] : 'Codex connection verified. This check does not run a task.',
+      result = { ok: !code, code, message: code === 'CODEX_AUTH_REQUIRED' && profile ? (profile === 'desktop'
+          ? 'Select Sign in to Codex to connect this Organis profile.'
+          : 'Run organis agent codex login, then check again.')
+          : code ? messages[code] : 'Codex connection verified. This check does not run a task.',
         authentication: { status: authenticated ? 'signed-in' : account.requiresOpenaiAuth ? 'signed-out' : 'not-required', kind: auth?.type ?? null }, sandbox };
     } catch (error) {
       const code = Object.hasOwn(messages, error.code) ? error.code : 'CODEX_PROTOCOL_ERROR';
@@ -128,6 +145,47 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
   };
 }
 export const checkCodex = createCodexChecker();
+
+export async function loginCodex({ executable, profile, signal, deviceAuth = false, terminal = false }) {
+  if (profile === undefined) throw new TypeError('An Organis Codex profile is required.');
+  const before = await checkCodex({ executable, profile, signal });
+  if (!before.ok && !['CODEX_AUTH_REQUIRED', 'CODEX_SANDBOX_REQUIRED'].includes(before.code)) return before;
+  const { env, args } = await prepareCodexProfile(profile, codexLoginEnvironment());
+  const abort = new AbortController();
+  const cancel = () => abort.abort(fault('CODEX_CHECK_CANCELLED'));
+  signal?.addEventListener('abort', cancel, { once: true });
+  const timer = setTimeout(() => abort.abort(fault('CODEX_LOGIN_FAILED')), 15 * 60 * 1000);
+  try {
+    if (signal?.aborted) cancel();
+    abort.signal.throwIfAborted();
+    // Codex opens the provider's browser flow and owns the credentials and callback.
+    const child = spawn(before.executable, ['login', ...args, ...(deviceAuth ? ['--device-auth'] : [])], {
+      cwd: env.CODEX_HOME, env, shell: false, windowsHide: true, stdio: terminal ? 'inherit' : 'ignore',
+      signal: abort.signal
+    });
+    let killTimer;
+    const stop = () => { killTimer = setTimeout(() => child.kill('SIGKILL'), 1500); };
+    abort.signal.addEventListener('abort', stop, { once: true });
+    const exitCode = await new Promise(resolve => {
+      child.once('error', () => {});
+      child.once('close', resolve);
+    }).finally(() => {
+      clearTimeout(killTimer);
+      abort.signal.removeEventListener('abort', stop);
+    });
+    abort.signal.throwIfAborted();
+    if (exitCode !== 0) throw fault('CODEX_LOGIN_FAILED');
+    const after = await checkCodex({ executable: before.executable, profile, signal });
+    if (after.ok && after.authentication?.kind !== 'chatgpt') throw fault('CODEX_LOGIN_FAILED');
+    return after;
+  } catch (error) {
+    const code = error.code === 'CODEX_CHECK_CANCELLED' ? error.code : 'CODEX_LOGIN_FAILED';
+    return { ok: false, code, message: messages[code], version: before.version };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  }
+}
 
 export class CodexConnection {
   constructor(child, signal, closeMs, onMessage) {

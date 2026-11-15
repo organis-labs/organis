@@ -6,7 +6,7 @@ exports.createAgentController = async ({ app, trustedSender, getWindow, smokeExe
   const location = app.isPackaged
     ? path.join(process.resourcesPath, 'runtime', 'src', 'codex.mjs')
     : path.join(__dirname, '../../packages/runtime/src/codex.mjs');
-  const { checkCodex } = await import(pathToFileURL(location).href);
+  const { checkCodex, loginCodex } = await import(pathToFileURL(location).href);
   let executable = smokeExecutable;
   let pending;
   let abort;
@@ -20,13 +20,21 @@ exports.createAgentController = async ({ app, trustedSender, getWindow, smokeExe
     executable = result.filePaths[0];
     return executable;
   });
-  ipcMain.handle('agents:checkCodex', event => {
-    if (!trustedSender(event) || closing) throw new Error('Connection request denied');
-    if (!pending) {
+  for (const [action, run] of Object.entries({ checkCodex, loginCodex })) {
+    ipcMain.handle(`agents:${action}`, event => {
+      if (!trustedSender(event) || closing) throw new Error('Connection request denied');
+      if (pending) throw new Error('Wait for the current Codex operation to finish.');
       abort = new AbortController();
-      pending = checkCodex({ executable, signal: abort.signal }).finally(() => { pending = null; });
-    }
-    return pending;
+      pending = run({ executable, profile: 'desktop', signal: abort.signal }).finally(() => { pending = null; });
+      return pending;
+    });
+  }
+  ipcMain.handle('agents:cancelLogin', event => {
+    if (!trustedSender(event) || closing) throw new Error('Connection request denied');
+    abort?.abort();
   });
-  return { close: async () => { closing = true; abort?.abort(); await pending; } };
+  return {
+    getExecutable: () => executable,
+    close: async () => { closing = true; abort?.abort(); await pending; }
+  };
 };

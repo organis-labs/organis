@@ -5,6 +5,7 @@ import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { CodexConnection, codexEnvironment, codexFault, resolveCodex, testedCodexVersions } from './codex.mjs';
 import { createCodexApprovalIntake } from './codex-approval.mjs';
+import { prepareCodexProfile } from './codex-profile.mjs';
 import { ProjectRegistry } from './projects.mjs';
 
 const disabledFeatures = [
@@ -16,7 +17,7 @@ const isId = value => typeof value === 'string' && value.length > 0 && value.len
 const policyError = () => codexFault('CODEX_POLICY_UNVERIFIED');
 const protocolError = () => codexFault('CODEX_PROTOCOL_ERROR');
 
-async function run({ executable, prompt, fileId, durationMs, projectId, stateDir }, { report, signal }) {
+async function run({ executable, prompt, fileId, durationMs, projectId, stateDir, profile }, { report, signal }) {
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(codexFault('CODEX_RUN_TIMEOUT')), durationMs);
   let connection;
@@ -38,6 +39,7 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
   let cancelBeforeTurnId;
   let cancelDeadline;
   const cwd = process.cwd();
+  let providerEnv;
   const cancel = () => {
     cancelDeadline = Date.now() + 2500;
     if (!mayHaveStartedTurn) abort.abort(codexFault('CODEX_CHECK_CANCELLED'));
@@ -51,6 +53,8 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
   try {
     abort.signal.throwIfAborted();
     const selected = await resolveCodex({ executable });
+    const { env, args: profileArgs } = await prepareCodexProfile(profile, codexEnvironment());
+    providerEnv = env;
     connection = start(selected, ['--version']);
     const output = await connection.version();
     await connection.close();
@@ -63,7 +67,7 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
       ...disabledFeatures.flatMap(feature => ['--disable', feature]),
       '--enable', 'skip_host_skill_discovery', '-c', 'web_search="disabled"',
       '-c', 'project_doc_max_bytes=0', '-c', 'allow_login_shell=false',
-      '-c', 'model_provider="openai"', '-c', 'analytics.enabled=false'], onMessage);
+      '-c', 'model_provider="openai"', '-c', 'analytics.enabled=false', ...profileArgs], onMessage);
     if (connection.child.pid) {
       // Do not act on the workspace until the owner has persisted the process identity.
       ready = await report({ type: 'ready', grandchildPid: connection.child.pid }, true);
@@ -80,7 +84,7 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
     }
     connection.notify('initialized');
     const account = await connection.request('account/read', { refreshToken: false });
-    if (!['chatgpt', 'apiKey'].includes(account?.account?.type)) throw codexFault('CODEX_AUTH_REQUIRED');
+    if (!(profile ? ['chatgpt'] : ['chatgpt', 'apiKey']).includes(account?.account?.type)) throw codexFault('CODEX_AUTH_REQUIRED');
     if (process.platform === 'win32') {
       const readiness = await connection.request('windowsSandbox/readiness', {});
       if (readiness?.status !== 'ready') throw codexFault('CODEX_SANDBOX_REQUIRED');
@@ -176,7 +180,7 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
   function start(selected, args, onMessage) {
     abort.signal.throwIfAborted();
     const child = spawn(selected, args, {
-      cwd, env: codexEnvironment(), shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
+      cwd, env: providerEnv, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
     });
     return new CodexConnection(child, abort.signal, 1500, onMessage);
   }

@@ -18,9 +18,10 @@ Use `-h` or `--help` by itself or as the last option of a command. For example,
 does not run the requested command. Unknown help topics exit with code 2.
 The CLI also accepts `-v` for `--version`.
 
-## Codex connection check
+## Codex sign-in and connection check
 
 ```sh
+organis agent codex login [--executable <absolute-path>] [--device-auth]
 organis agent codex check [--executable <absolute-path>] [--json]
 ```
 
@@ -28,8 +29,9 @@ Run `organis agent codex check --help` to see which Codex CLI versions your Orga
 build accepts. The default is to find Codex on
 `PATH`. If more than one copy is installed, pass its absolute path and quote it
 if it contains spaces. Use the native `codex.exe` on Windows. Use a native Linux
-binary inside WSL2. If Codex reports that you are signed out, run `codex login`
-in your terminal and then repeat the check.
+binary inside WSL2. Run `organis agent codex login` to open Codex's official
+ChatGPT sign-in in your browser. Use `--device-auth` when working headlessly.
+The CLI uses its own Codex profile. Sign-in is separate from the desktop app.
 
 ```powershell
 .\organis.cmd agent codex check --executable "C:\Tools\Codex\codex.exe" --json
@@ -51,10 +53,9 @@ when the check fails. Inspect `ok`, `code`, `version` and `capabilities`. Check
 that `authentication` is present before reading `authentication.status`. Early
 failures, such as a missing executable, can omit it. Argument errors go to
 stderr. Windows also reports Codex's sandbox readiness. A successful check does
-not make a model request or prove
-sandbox enforcement. Real task execution, interactive approval and session
-resume are unavailable. See the [connection contract](specs/codex-connection-check.md)
-for platform evidence and diagnostic behavior.
+not make a model request or prove sandbox enforcement. Use `run codex` to
+send a read-only question. See the [connection contract](specs/codex-connection-check.md)
+for diagnostic behavior.
 
 ## Command reference
 
@@ -98,7 +99,7 @@ for upgrade requirements.
 
 ### Read-only Codex preview
 
-1. Run `organis agent codex check` and sign in in Codex if prompted.
+1. Run `organis agent codex login`, finish browser sign-in, then run `organis agent codex check`.
 2. Register a trusted directory with `organis project add <absolute-directory> --json`.
 3. Use the returned project ID in
    `organis run codex <project-id> --prompt "Reply with READY" --json`.

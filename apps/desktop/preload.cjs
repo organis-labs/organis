@@ -2,13 +2,17 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('organisAgents', Object.freeze({
   chooseCodex: () => ipcRenderer.invoke('agents:chooseCodex'),
-  checkCodex: () => ipcRenderer.invoke('agents:checkCodex')
+  checkCodex: () => ipcRenderer.invoke('agents:checkCodex'),
+  loginCodex: () => ipcRenderer.invoke('agents:loginCodex'),
+  cancelLogin: () => ipcRenderer.invoke('agents:cancelLogin')
 }));
 
 contextBridge.exposeInMainWorld('organisExecution', Object.freeze({
   chooseWorkspace: () => ipcRenderer.invoke('execution:chooseWorkspace'),
   list: () => ipcRenderer.invoke('execution:list'),
   start: options => ipcRenderer.invoke('execution:start', options),
+  startCodex: options => ipcRenderer.invoke('execution:startCodex', options),
+  codexResult: id => ipcRenderer.invoke('execution:codexResult', id),
   events: id => ipcRenderer.invoke('execution:events', id),
   cancel: options => ipcRenderer.invoke('execution:cancel', options),
   reconcile: () => ipcRenderer.invoke('execution:reconcile')

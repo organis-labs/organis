@@ -5,7 +5,7 @@ import { mkdtemp, readFile, realpath, rm, writeFile, chmod } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createCodexChecker, codexEnvironment, resolveCodex } from '../packages/runtime/src/codex.mjs';
+import { createCodexChecker, codexEnvironment, codexLoginEnvironment, resolveCodex } from '../packages/runtime/src/codex.mjs';
 
 const fixture = fileURLToPath(new URL('./fixtures/codex-server.mjs', import.meta.url));
 const cli = fileURLToPath(new URL('../apps/cli/src/main.mjs', import.meta.url));
@@ -93,6 +93,17 @@ test('environment excludes secrets and interpreter injection while retaining Cod
     OPENAI_API_KEY: 'secret', GH_TOKEN: 'secret', NODE_OPTIONS: '--import evil', ELECTRON_RUN_AS_NODE: '1', LD_PRELOAD: 'evil' }),
   { Path: 'path', HOME: 'home', CODEX_HOME: 'codex', SYSTEMROOT: 'windows' });
 });
+test('only Linux native login inherits desktop session variables', () => {
+  const session = {
+    DISPLAY: ':1', WAYLAND_DISPLAY: 'wayland-0', XDG_RUNTIME_DIR: '/run/user/1000',
+    DBUS_SESSION_BUS_ADDRESS: 'unix:path=/run/user/1000/bus'
+  };
+  const source = { PATH: '/usr/bin', ...session, OPENAI_API_KEY: 'secret', NODE_OPTIONS: '--import evil' };
+  assert.deepEqual(codexEnvironment(source), { PATH: '/usr/bin' });
+  assert.deepEqual(codexLoginEnvironment(source, 'darwin'), { PATH: '/usr/bin' });
+  assert.deepEqual(codexLoginEnvironment(source, 'linux'), { PATH: '/usr/bin', ...session });
+});
+
 test('discovery ignores relative PATH entries and rejects missing paths and Windows command shims', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'organis-codex-discovery-'));
   t.after(() => rm(directory, { recursive: true, force: true }));

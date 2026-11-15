@@ -45,7 +45,7 @@ async function launch(root = __dirname, args = process.argv.slice(2)) {
   let controlReady = false;
   let pendingInterrupts = 0;
   const interrupt = (signal = 'SIGINT') => {
-    if (args[0] === 'run') {
+    if (['run', 'agent'].includes(args[0])) {
       if (!controlReady) { pendingInterrupts = Math.min(2, pendingInterrupts + 1); return; }
       if (child.connected) child.send({ type: 'organis:interrupt' }, () => {});
     } else child.kill(signal);

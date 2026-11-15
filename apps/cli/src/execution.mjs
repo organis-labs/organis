@@ -2,19 +2,21 @@ import { LocalRuntime } from '../../../packages/runtime/src/execution.mjs';
 import { resolve } from 'node:path';
 
 const usageError = message => Object.assign(new Error(message), { code: 'INVALID_ARGUMENT' });
-const valueOptions = new Set(['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'after']);
+const valueOptions = new Set(['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'after', 'prompt', 'executable']);
 
 export async function executionCommand(args) {
   const command = args.shift();
-  const id = ['show', 'events', 'cancel'].includes(command) ? args.shift() : undefined;
+  const needsId = ['codex', 'show', 'events', 'cancel'].includes(command);
+  const id = needsId ? args.shift() : undefined;
   const allowed = {
     fixture: ['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'json'],
+    codex: ['prompt', 'executable', 'state-dir', 'command-id', 'json'],
     list: ['state-dir', 'json'], show: ['state-dir', 'json'],
     events: ['state-dir', 'after', 'json'], cancel: ['state-dir', 'command-id', 'json'],
     reconcile: ['state-dir', 'json']
   }[command];
-  if (!allowed || (['show', 'events', 'cancel'].includes(command) && (!id || id.startsWith('--')))) {
-    throw usageError('Use run fixture|list|show <id>|events <id>|cancel <id>|reconcile.');
+  if (!Array.isArray(allowed) || (needsId && (!id || id.startsWith('--')))) {
+    throw usageError('Use run codex <project-id>|fixture|list|show <id>|events <id>|cancel <id>|reconcile.');
   }
   const options = {};
   while (args.length) {
@@ -27,6 +29,7 @@ export async function executionCommand(args) {
     options[key] = value;
   }
   if (command === 'fixture' && !options.workspace) throw usageError('--workspace is required.');
+  if (command === 'codex' && !options.prompt?.trim()) throw usageError('--prompt is required.');
   for (const key of ['duration', 'after']) {
     if (options[key] !== undefined && (!/^\d+$/.test(options[key]) || !Number.isSafeInteger(Number(options[key])))) {
       throw usageError(`--${key} must be a nonnegative safe integer.`);
@@ -57,8 +60,10 @@ export async function executionCommand(args) {
   process.on('disconnect', interrupt);
   if (process.connected) process.send({ type: 'organis:control-ready' }, () => {});
   try {
-    if (command === 'fixture') {
-      const accepted = await runtime.startFixture({
+    if (command === 'fixture' || command === 'codex') {
+      const accepted = command === 'codex' ? await runtime.startCodex({
+        projectId: id, prompt: options.prompt, executable: options.executable, commandId: options['command-id']
+      }) : await runtime.startFixture({
         workspace: resolve(options.workspace), commandId: options['command-id'],
         mode: options.mode ?? 'complete', durationMs: options.duration === undefined ? 250 : Number(options.duration),
         scope: options.scope ?? 'trusted-workspace'
@@ -71,7 +76,10 @@ export async function executionCommand(args) {
         await runtime.cancel(activeId);
       }
       const run = await runtime.wait(activeId);
-      print('result', { run });
+      if (run.mode === 'codex-read-only' && run.state === 'completed') {
+        const answer = runtime.events(activeId).find(event => event.type === 'codex_answer')?.text;
+        print('result', { run, answer: answer ?? null });
+      } else print('result', { run });
       process.exitCode = run.state === 'completed' ? 0 : run.state === 'cancelled' ? 130 : 1;
     } else if (command === 'list') print('runs', { runs: runtime.listRuns() });
     else if (command === 'show') print('run', { run: runtime.getRun(id) });

@@ -3,8 +3,9 @@
 Desktop and CLI foundation for a general-purpose agent workspace. Both clients
 run a bundled deterministic fixture through a shared local execution runtime,
 with saved state, ordered events, command deduplication and cancellation.
-Codex connection checks are available; real agent task execution, provider
-integrations, synchronization and interactive approvals are not implemented.
+Codex connection checks are available in both clients. The CLI also offers a
+bounded read-only Codex execution preview for registered projects. Provider
+integrations, synchronization and interactive approvals remain planned.
 See the [execution contract](docs/local-execution.md)
 for ownership, recovery and scope limitations.
 
@@ -90,6 +91,10 @@ Check an installed Codex CLI without starting a task:
 organis agent codex check --json
 organis agent codex check --executable /absolute/path/to/codex --json
 ```
+
+Use `organis run codex --help` to run a text task from the CLI and inspect its
+saved run and events. See the [read-only execution preview](docs/specs/codex-read-only.md)
+for supported settings and platform verification.
 
 The desktop offers **Check connection** and an executable picker. Currently the
 verified version is Codex **0.164.0**; other versions are reported as unverified.
@@ -230,7 +235,7 @@ to map another domain document to the code it governs.
 
 - `apps/desktop`: isolated Electron shell and local static UI.
 - `apps/cli`: headless entry point, independent of Electron.
-- `packages/runtime`: local execution contracts, persistence and deterministic fixture; no real agent adapter yet.
+- `packages/runtime`: local execution contracts, persistence, deterministic fixture and Codex adapter.
 - `scripts/build.mjs`: native packaging, smoke checks, checksums, provenance.
 - `tests`: CLI behavior checks.
 

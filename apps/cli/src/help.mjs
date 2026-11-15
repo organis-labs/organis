@@ -34,7 +34,7 @@ Commands:
   status   Show the Organis version, platform and available features.
   agent    Check the installed Codex CLI and its reported sign-in state.
   project  Manage locally saved projects and requested path access.
-  run      Run the built-in fixture and inspect saved runs.
+  run      Run a read-only Codex task or fixture and inspect saved runs.
   update   Check for or install a CLI update.
 
 Options:
@@ -47,7 +47,7 @@ Get started:
   organis agent codex check --json
 
 Codex connection checks support ${testedCodexVersions.join(', ')}.
-Real Codex task execution and interactive approvals are unavailable.`,
+Read-only Codex preview: organis run codex --help.`,
   agent: codexHelp,
   'agent codex': codexHelp,
   'agent codex check': codexHelp,
@@ -74,9 +74,10 @@ Options:
   --access <mode>          Requested access for set-path (default: read).
 
 The default state directory is ~/.organis/runtime. Saved access is a preference.`,
-  run: `Run a deterministic local fixture or manage saved runs.
+  run: `Start a local run or manage saved runs.
 
 Usage:
+  organis run codex <project-id> --prompt <text> [--executable <absolute-path>]
   organis run fixture --workspace <directory> [--mode complete|fail|wait]
       [--duration <ms>] [--scope trusted-workspace] [--command-id <uuid>]
   organis run list
@@ -100,6 +101,22 @@ Example:
 
 The fixture uses a trusted workspace. Cancel requests termination and does
 not confirm it. Inspect the run with organis run show <run-id>.`,
+  'run codex': `Run one read-only Codex task for a registered project.
+
+Usage:
+  organis run codex <project-id> --prompt <text> [--executable <absolute-path>]
+      [--state-dir <directory>] [--command-id <uuid>] [--json]
+
+Uses signed-in Codex CLI ${testedCodexVersions.join(', ')} and a read-only,
+ephemeral turn with a 120-second limit. Shell commands and approval grants
+are disabled. This preview rejects projects with additional path rules.
+Read-only does not limit reads to the project directory.
+Use a compatible Codex configuration without MCP server definitions.
+Use synthetic or otherwise shareable text. The prompt is sent to Codex and
+the final reply is saved locally in run events. Press Ctrl+C or use
+organis run cancel <run-id> in another terminal to request cancellation.
+
+Exit codes: 0 completed, 1 failed or interrupted, 2 invalid arguments, 130 cancelled.`,
   update: `Check for or install a CLI update.
 
 Usage:
@@ -113,7 +130,7 @@ Installing requires the standalone CLI bundle and a writable install location.`
 
 const groupedCommands = {
   project: new Set(['list', 'add', 'show', 'remove', 'set-path', 'remove-path']),
-  run: new Set(['fixture', 'list', 'show', 'events', 'cancel', 'reconcile'])
+  run: new Set(['codex', 'fixture', 'list', 'show', 'events', 'cancel', 'reconcile'])
 };
 
 export function getHelp(args) {

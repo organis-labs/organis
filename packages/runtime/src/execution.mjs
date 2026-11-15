@@ -9,6 +9,7 @@ import {
   TERMINAL_STATES, TRANSITIONS, assertTransition
 } from './contracts.mjs';
 import { Store } from './store.mjs';
+import { codexEnvironment } from './codex.mjs';
 import { killOwnedTree, pidAlive, waitForOwnedExit } from './process-tree.mjs';
 
 export {
@@ -32,6 +33,14 @@ export function defaultStateDir() {
 
 // Desktop packaging copies the runtime outside app.asar, alongside its fixture.
 const fixturePath = fileURLToPath(new URL('./fixture-process.mjs', import.meta.url));
+const codexPath = fileURLToPath(new URL('./codex-run-process.mjs', import.meta.url));
+const CODEX_MODE = 'codex-read-only';
+const CODEX_DURATION_MS = 120000;
+const CODEX_CODES = new Set([
+  'CODEX_NOT_FOUND', 'CODEX_EXECUTABLE_INVALID', 'CODEX_SHIM_UNSUPPORTED', 'CODEX_VERSION_UNSUPPORTED',
+  'CODEX_START_FAILED', 'CODEX_PROTOCOL_ERROR', 'CODEX_AUTH_REQUIRED', 'CODEX_SANDBOX_REQUIRED',
+  'CODEX_RUN_TIMEOUT', 'CODEX_RUN_FAILED', 'CODEX_POLICY_UNVERIFIED', 'CODEX_EXIT_FAILED', 'CODEX_MCP_UNSUPPORTED'
+]);
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 // Race bound that must not keep the process alive after the raced work finishes.
@@ -172,9 +181,36 @@ export class LocalRuntime {
         throw new RuntimeError('INVALID_ARGUMENT', `${name} must be a UUID.`);
       }
     }
-    const { canonical, key, fileId } = this.#resolveWorkspace(workspace);
-    const payloadHash = hash({ kind: 'startFixture', workspaceKey: key, mode, durationMs, scope,
+    const target = this.#resolveWorkspace(workspace);
+    const payloadHash = hash({ kind: 'startFixture', workspaceKey: target.key, mode, durationMs, scope,
       roomId: roomId ?? null, participantId: participantId ?? null });
+    return this.#enqueue(target, { kind: 'startFixture', commandId, mode, durationMs, scope, roomId, participantId, payloadHash });
+  }
+
+  async startCodex({ projectId, prompt, executable, commandId } = {}) {
+    if (this.#closing || this.#closed) throw new RuntimeError('RUNTIME_CLOSED', 'The runtime is closed.');
+    if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > 16384) {
+      throw new RuntimeError('INVALID_ARGUMENT', 'The Codex prompt must contain 1 to 16384 UTF-8 bytes.');
+    }
+    if (commandId !== undefined && (typeof commandId !== 'string' || !UUID.test(commandId))) {
+      throw new RuntimeError('INVALID_ARGUMENT', 'commandId must be a UUID.');
+    }
+    if (executable !== undefined && (typeof executable !== 'string' || !path.isAbsolute(executable) || executable.includes('\0'))) {
+      throw new RuntimeError('INVALID_ARGUMENT', 'Use an absolute path to the native Codex executable.');
+    }
+    const { ProjectRegistry } = await import('./projects.mjs');
+    const registry = new ProjectRegistry(this.#stateDir);
+    let registration;
+    try { registration = await registry.codexTarget(projectId); } finally { registry.close(); }
+    const target = this.#resolveWorkspace(registration.workspace);
+    if (target.fileId !== registration.fileId) throw new RuntimeError('INVALID_WORKSPACE', 'The project registration changed.');
+    const payloadHash = hash({ kind: 'startCodex', projectId, fileId: target.fileId, prompt, executable: executable ?? null });
+    return this.#enqueue(target, { kind: 'startCodex', commandId, mode: CODEX_MODE, durationMs: CODEX_DURATION_MS, scope: 'read-only',
+      payloadHash, codex: { projectId, executable, prompt, fileId: target.fileId } });
+  }
+
+  #enqueue({ canonical, key, fileId }, { kind, commandId, mode, durationMs, scope, roomId, participantId, payloadHash, codex }) {
+    if (this.#closing || this.#closed) throw new RuntimeError('RUNTIME_CLOSED', 'The runtime is closed.');
     const ids = {
       runId: randomUUID(), taskId: randomUUID(), attemptId: randomUUID(), commandId: commandId ?? randomUUID(),
       roomId: roomId ?? randomUUID(), participantId: participantId ?? randomUUID()
@@ -183,7 +219,7 @@ export class LocalRuntime {
       const store = this.#store;
       const existing = store.get('SELECT * FROM commands WHERE command_id=?', ids.commandId);
       if (existing) {
-        if (existing.kind === 'startFixture' && existing.payload_hash === payloadHash && existing.run_id) {
+        if (existing.kind === kind && existing.payload_hash === payloadHash && existing.run_id) {
           return { duplicate: true, run: toSnapshot(this.#requireRow(existing.run_id)) };
         }
         throw new RuntimeError('COMMAND_CONFLICT', 'commandId was already used for a different command.');
@@ -202,7 +238,7 @@ export class LocalRuntime {
         ids.runId, ids.taskId, ids.attemptId, ids.roomId, ids.participantId, ids.commandId, key, canonical, mode,
         durationMs, scope, this.ownerId, process.pid, stamp, stamp);
       store.run('INSERT INTO commands(command_id,kind,payload_hash,run_id,created_at) VALUES(?,?,?,?,?)',
-        ids.commandId, 'startFixture', payloadHash, ids.runId, stamp);
+        ids.commandId, kind, payloadHash, ids.runId, stamp);
       store.run('DELETE FROM workspaces WHERE key=? OR file_id=?', key, fileId);
       store.run('INSERT INTO workspaces(key,file_id,path,busy_run_id) VALUES(?,?,?,?)', key, fileId, canonical, ids.runId);
       store.addEvent(ids.runId, 'run_created', { mode, durationMs, scope });
@@ -212,6 +248,7 @@ export class LocalRuntime {
     this.#ownerRegistered = true;
     this.#startTimer();
     const local = this.#newLocal(ids.runId, canonical, mode, durationMs);
+    local.codex = codex;
     this.#locals.set(ids.runId, local);
     this.#timer.ref();
     setImmediate(() => this.#launch(local));
@@ -324,7 +361,8 @@ export class LocalRuntime {
   #retryPending() {
     for (const [id, failedAt] of [...this.#pendingInterrupt]) {
       const local = this.#locals.get(id);
-      const dead = !local?.child?.pid || (Boolean(local.exitInfo) && local.ready && !pidAlive(local.grandchildPid));
+      const dead = !local?.unsafe && (!local?.child?.pid
+        || (Boolean(local.exitInfo) && local.ready && !pidAlive(local.grandchildPid) && (!local.codex || local.result?.processClosed)));
       if (!dead && Date.now() - failedAt < 10000) continue;
       try {
         this.#store.tx(() => {
@@ -380,7 +418,7 @@ export class LocalRuntime {
       // A crash before process identity is recorded must not look like a free lease.
       this.#store.tx(() => this.#store.addEvent(local.id, 'launch_requested'));
     } catch (error) { this.#persistenceFailure(local, error); return; }
-    const env = { ORGANIS_FIXTURE: '1' };
+    const env = local.codex ? { ...codexEnvironment() } : { ORGANIS_FIXTURE: '1' };
     if (process.platform === 'win32') {
       const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT;
       if (systemRoot !== undefined) env.SystemRoot = systemRoot;
@@ -388,7 +426,8 @@ export class LocalRuntime {
     if (process.versions.electron) env.ELECTRON_RUN_AS_NODE = '1';
     let child;
     try {
-      child = spawn(process.execPath, [fixturePath, '--role', 'child', '--mode', local.mode, '--duration', String(local.durationMs)], {
+      const args = local.codex ? [codexPath] : [fixturePath, '--role', 'child', '--mode', local.mode, '--duration', String(local.durationMs)];
+      child = spawn(process.execPath, args, {
         cwd: local.cwd, shell: false, windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], env,
         detached: true
       });
@@ -428,13 +467,19 @@ export class LocalRuntime {
       else this.#store.run("UPDATE runs SET process_pid=? WHERE id=? AND owner_id=? AND state='cancelling'", pid, local.id, this.ownerId);
       return result.changes;
     });
-    if (changed) return;
+    if (changed) {
+      if (local.codex) local.child.send({
+        type: 'start', ...local.codex, durationMs: local.durationMs, stateDir: this.#stateDir
+      }, () => {});
+      return;
+    }
     if (this.#runRow(local.id)?.state === 'cancelling') this.#cancelLocal(local);
     else killOwnedTree({ child: local.child, grandchildPid: local.grandchildPid }).catch(() => {});
   }
 
   #onMessage(local, message) {
     if (!message || typeof message !== 'object') return;
+    if (local.codex) { this.#onCodexMessage(local, message); return; }
     if (message.type === 'ready' && !local.ready) {
       local.ready = true;
       const pid = Number.isInteger(message.pid) ? message.pid : null;
@@ -460,6 +505,38 @@ export class LocalRuntime {
     }
   }
 
+  #onCodexMessage(local, message) {
+    if (message.type === 'ready' && !local.ready) {
+      local.grandchildPid = message.grandchildPid ?? null;
+      this.#store.tx(() => {
+        this.#store.run('UPDATE runs SET grandchild_pid=?, updated_at=? WHERE id=? AND owner_id=?',
+          local.grandchildPid, now(), local.id, this.ownerId);
+        this.#store.addEvent(local.id, 'codex_process_ready', {});
+      });
+      local.ready = true;
+      const type = this.#runRow(local.id)?.state === 'running' ? 'launch-confirmed' : 'cancel';
+      if (local.child.connected) local.child.send({ type }, () => {});
+    } else if (message.type === 'turn') {
+      const { threadId, turnId, version } = message;
+      this.#store.tx(() => this.#store.addEvent(local.id, 'codex_turn_started', { threadId, turnId, version }));
+    } else if (message.type === 'unsafe') {
+      local.unsafe = true;
+      this.#store.tx(() => this.#store.addEvent(local.id, 'codex_containment_unverified'));
+    } else if (message.type === 'result') {
+      local.result = {
+        ok: message.ok === true,
+        code: CODEX_CODES.has(message.code) ? message.code : 'CODEX_RUN_FAILED',
+        answer: typeof message.answer === 'string' ? message.answer.slice(0, 32768) : null,
+        interruptUnconfirmed: message.interruptUnconfirmed === true,
+        processClosed: message.processClosed === true
+      };
+      local.unsafe ||= message.unexpectedTool === true;
+      if (!local.unsafe && local.result.processClosed) {
+        this.#store.tx(() => this.#store.addEvent(local.id, 'codex_process_closed'));
+      }
+    }
+  }
+
   async #afterExit(local) {
     await Promise.race([local.disconnected, bound(2000)]);
     const target = { exited: local.exited, grandchildPid: () => local.grandchildPid, ready: () => Boolean(local.ready) };
@@ -470,13 +547,13 @@ export class LocalRuntime {
     }
     if (local.cancelPromise || local.done || local.persistenceFailed) return;
     const { code, signal } = local.exitInfo;
-    if (!dead) {
+    if (!dead || local.unsafe || (local.codex && !local.result?.processClosed)) {
       this.#terminate(local, ['running'], 'interrupted', 'TERMINATION_UNVERIFIED', code, true);
       return;
     }
     const ok = code === 0 && signal === null && local.result?.ok === true && dead;
     this.#terminate(local, ['running'], ok ? 'completed' : 'failed',
-      ok ? null : (local.result?.code || 'FIXTURE_FAILED'), code);
+      ok ? null : (local.result?.code || (local.codex ? 'CODEX_RUN_FAILED' : 'FIXTURE_FAILED')), code);
   }
 
   // Terminal transition for a run this owner executes. Never reports completed unless the tx commits.
@@ -493,6 +570,9 @@ export class LocalRuntime {
         if (!result.changes) return false;
         if (!retainOwnership) this.#store.run('UPDATE workspaces SET busy_run_id=NULL WHERE busy_run_id=?', local.id);
         else this.#store.addEvent(local.id, 'ownership_retained', { reason: 'termination_unverified' });
+        if (state === 'completed' && local.codex && local.result.answer) {
+          this.#store.addEvent(local.id, 'codex_answer', { text: local.result.answer });
+        }
         this.#store.addEvent(local.id, state, { exitCode: exitCode ?? null, errorCode });
         return true;
       });
@@ -533,7 +613,7 @@ export class LocalRuntime {
     const target = { exited: local.exited, grandchildPid: () => local.grandchildPid, ready: () => Boolean(local.ready) };
     const startupDeadline = Date.now() + 10000;
     while (!local.ready && !local.exitInfo && Date.now() < startupDeadline) await sleep(50);
-    let dead = await waitForOwnedExit(target, 1500);
+    let dead = await waitForOwnedExit(target, local.codex ? 6000 : 1500);
     if (!dead) {
       await killOwnedTree({ child: local.child, grandchildPid: local.grandchildPid });
       dead = await waitForOwnedExit(target, 5000);
@@ -541,6 +621,11 @@ export class LocalRuntime {
     if (dead) {
       await Promise.race([local.disconnected, bound(2000)]);
       const exitCode = (await local.exited).code ?? null;
+      if (local.codex && (local.unsafe || !local.result?.processClosed || local.result.interruptUnconfirmed)) {
+        this.#terminate(local, ['cancelling'], 'interrupted', 'CANCEL_UNVERIFIED', exitCode,
+          Boolean(local.unsafe || !local.result?.processClosed));
+        return;
+      }
       this.#store.tx(() => {
         const stamp = now();
         const result = this.#store.run(
@@ -623,8 +708,13 @@ export class LocalRuntime {
     const fresh = this.#runRow(id);
     if (!interruptedNow && !fresh.ownership_retained) return null;
     const launchRequested = store.get("SELECT 1 FROM events WHERE run_id=? AND type='launch_requested' LIMIT 1", id);
-    const readyRecorded = store.get("SELECT 1 FROM events WHERE run_id=? AND type='fixture_ready' LIMIT 1", id);
-    const unknownTree = Boolean(launchRequested && !readyRecorded);
+    const readyRecorded = store.get("SELECT 1 FROM events WHERE run_id=? AND type IN ('fixture_ready','codex_process_ready') LIMIT 1", id);
+    // A tool may have started a process outside the two recorded handles.
+    // Reconcile cannot establish its death by observing those handles alone.
+    const uncertainCodex = store.get("SELECT 1 FROM events WHERE run_id=? AND type='codex_containment_unverified' LIMIT 1", id);
+    const codexClosed = fresh.mode === CODEX_MODE
+      && store.get("SELECT 1 FROM events WHERE run_id=? AND type='codex_process_closed' LIMIT 1", id);
+    const unknownTree = Boolean(uncertainCodex || (launchRequested && (!readyRecorded || (fresh.mode === CODEX_MODE && !codexClosed))));
     const processDead = !unknownTree && (!fresh.process_pid || !pidAlive(fresh.process_pid))
       && (!fresh.grandchild_pid || !pidAlive(fresh.grandchild_pid));
     if (processDead) {

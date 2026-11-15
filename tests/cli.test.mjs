@@ -13,10 +13,14 @@ test('CLI reports version without Electron or network access', () => {
   const result = run('--version');
   assert.equal(result.status, 0); assert.equal(result.stdout.trim(), version);
 });
-test('status JSON distinguishes fixture execution from agent integration', () => {
+test('status JSON distinguishes the Codex preview from the general agent runtime', () => {
   const result = run('status', '--json');
   assert.equal(result.status, 0);
-  assert.deepEqual(JSON.parse(result.stdout), {name:'Organis',version,stage:'local-execution-foundation',platform:process.platform,arch:process.arch,runtime:process.version,agentRuntimeAvailable:false,fixtureExecutionAvailable:true,codexConnectionCheckAvailable:true});
+  assert.deepEqual(JSON.parse(result.stdout), {
+    name: 'Organis', version, stage: 'local-execution-foundation', platform: process.platform, arch: process.arch,
+    runtime: process.version, agentRuntimeAvailable: false, fixtureExecutionAvailable: true, codexConnectionCheckAvailable: true,
+    codexReadOnlyExecutionPreview: true
+  });
 });
 test('invalid commands fail instead of claiming to execute an agent', () => {
   for (const args of [['run'], ['status', '--unknown'], ['--version', 'extra']]) {
@@ -48,6 +52,11 @@ test('root and command help explain Codex compatibility without running a check'
   assert.equal(codex.status, 0, codex.stderr);
   assert.match(codex.stdout, /Supported Codex CLI:/);
   const state = join(folder, 'state');
+  const codexRun = run('run', 'codex', 'missing-project', '--state-dir', state, '--help');
+  assert.equal(codexRun.status, 0, codexRun.stderr);
+  assert.match(codexRun.stdout, /read-only Codex task/);
+  assert.match(codexRun.stdout, /--prompt <text>/);
+  assert.match(codexRun.stdout, /docs\/cli\.md/);
   const fixture = run('run', 'fixture', '--workspace', folder, '--state-dir', state, '-h');
   assert.equal(fixture.status, 0, fixture.stderr);
   assert.match(fixture.stdout, /organis run fixture/);

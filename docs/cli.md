@@ -71,6 +71,7 @@ for platform evidence and diagnostic behavior.
 | `run fixture --workspace <directory>` | Run the bundled deterministic test. Use a workspace you trust. |
 | `run list` / `run show <run-id>` | List runs or inspect one run. |
 | `run events <run-id> [--after <sequence>]` | Show events after an exclusive sequence cursor. |
+| `run deny <run-id> <approval-id>` | Record a denial for the pending Codex request. |
 | `run cancel <run-id> [--command-id <uuid>]` | Request cancellation. Use `run show` to check the result. |
 | `run reconcile` | Reconcile interrupted runs. |
 | `update [--check]` | Check the installed CLI for updates. Without `--check`, install an available update from a writable standalone bundle. |
@@ -117,6 +118,15 @@ provider. The task's final answer is saved locally and returned in a completed
 inspection may expose it. The read-only preview supports projects without
 additional path rules. See the [preview contract](specs/codex-read-only.md) for
 its capability and retention limits.
+
+If Codex requests authority during a read-only turn, the run reports
+`awaiting_approval`. In another terminal, find the `approvalId` in
+`organis run events <run-id>`, then run
+`organis run deny <run-id> <approval-id>` to decline the request. Use the same
+state directory as the running CLI. A successful command records the denial
+before the owning process sends it to Codex. Use `run cancel` to interrupt the
+entire run. Only one request can wait at a time, and the 120-second run deadline
+still applies while it waits.
 
 ## Help and documentation conventions
 

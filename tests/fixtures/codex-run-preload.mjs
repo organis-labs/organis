@@ -10,9 +10,18 @@ const scenario = process.env.ORGANIS_TEST_CODEX_SCENARIO;
 
 childProcess.spawn = (file, args, options) => {
   if (args[0]?.endsWith('codex-run-process.mjs')) {
-    return originalSpawn(file, ['--import', preload, ...args], {
+    const worker = originalSpawn(file, ['--import', preload, ...args], {
       ...options, env: { ...options.env, ORGANIS_TEST_CODEX_SCENARIO: scenario }
     });
+    if (scenario === 'approval-delivery-failure') {
+      const send = worker.send.bind(worker);
+      worker.send = (message, ...rest) => {
+        if (message.type !== 'deny-approval') return send(message, ...rest);
+        queueMicrotask(() => rest[0](new Error('synthetic IPC send failure')));
+        return false;
+      };
+    }
+    return worker;
   }
   if (args[0] === 'app-server' || args[0] === '--version') {
     if (args[0] === 'app-server' && (!args.includes('--strict-config') || !args.includes('shell_tool')

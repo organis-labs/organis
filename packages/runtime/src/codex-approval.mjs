@@ -4,6 +4,7 @@ const methods = new Set([
   'item/permissions/requestApproval'
 ]);
 const permissionMethod = 'item/permissions/requestApproval';
+export const isCodexApprovalMethod = method => methods.has(method);
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isIdentifier = value => typeof value === 'string' && value.length > 0 && value.length <= 256;
 const isRequestId = value => Number.isSafeInteger(value) || isIdentifier(value);
@@ -45,7 +46,7 @@ export function createCodexApprovalIntake({ version, connectionId, threadId, tur
     if (requests.size >= 256) return stop('request-limit');
     requests.add(id);
 
-    // No approval authority is wired. Construct a fresh negative response
+    // Construct a fresh negative response
     // without copying requested permissions, amendments, commands or patches.
     const result = method === permissionMethod ? { permissions: {}, scope: 'turn' } : { decision: 'decline' };
     const response = message.jsonrpc === '2.0' ? { jsonrpc: '2.0', id, result } : { id, result };

@@ -556,7 +556,7 @@ test('m. default state directory is under the user home', () => {
 });
 
 test('n. contracts are frozen and consistent', () => {
-  assert.equal(IMPLEMENTED_STATES.includes('awaiting_approval'), false);
+  assert.equal(IMPLEMENTED_STATES.includes('awaiting_approval'), true);
   assert.equal(RUN_STATES.includes('awaiting_approval'), true);
   assert.deepEqual([...RUN_STATES].sort(), [...LIVE_STATES, ...TERMINAL_STATES].sort());
   for (const state of TERMINAL_STATES) assert.deepEqual(TRANSITIONS[state], []);
@@ -578,9 +578,10 @@ test('n. contracts are frozen and consistent', () => {
   assert.equal(FIXTURE_CAPABILITY.sandbox, false);
   assert.equal(FIXTURE_CAPABILITY.maxDurationMs, 30000);
   assert.deepEqual([...APPROVAL_STATES], ['not_required', 'pending', 'approved', 'rejected', 'expired']);
-  for (const name of ['room', 'participant', 'message', 'host', 'artifact', 'approval']) {
+  for (const name of ['room', 'participant', 'message', 'host', 'artifact']) {
     assert.equal(ENTITY_CONTRACTS[name].implemented, 'contract-only', name);
   }
+  assert.equal(ENTITY_CONTRACTS.approval.implemented, 'r04-denial-only');
   for (const name of ['workspace', 'task', 'run', 'attempt', 'event', 'agentCapability']) {
     assert.equal(ENTITY_CONTRACTS[name].implemented, 'm1-fixture', name);
   }

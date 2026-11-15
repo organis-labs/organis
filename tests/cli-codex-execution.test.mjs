@@ -16,6 +16,15 @@ const cli = fileURLToPath(new URL('../apps/cli/src/main.mjs', import.meta.url));
 const preload = new URL('./fixtures/codex-run-preload.mjs', import.meta.url).href;
 const prompt = 'PRIVATE_PROMPT_MARKER';
 
+async function waitForApproval(query, id, signal) {
+  for (;;) {
+    const { events } = await query('run', 'events', id);
+    const approval = events.find(event => event.type === 'approval_requested');
+    if (approval) return approval;
+    await delay(50, null, { signal });
+  }
+}
+
 async function setup(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'organis-codex-cli-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -121,11 +130,9 @@ test('another CLI can cancel an active Codex turn and observe the same terminal 
 
 test('an owner crash before confirmed Codex shutdown retains the workspace lease', { timeout: 15000 }, async t => {
   const { start, query } = await setup(t);
-  const launched = start('wait');
+  const launched = start('approval');
   const { run: { id } } = await launched.next();
-  while (!(await query('run', 'events', id)).events.some(event => event.type === 'codex_turn_started')) {
-    await delay(50, null, { signal: t.signal });
-  }
+  const { approvalId } = await waitForApproval(query, id, t.signal);
   launched.stop();
   await launched.closed;
   await query('run', 'reconcile');
@@ -133,18 +140,82 @@ test('an owner crash before confirmed Codex shutdown retains the workspace lease
   assert.equal(run.state, 'interrupted');
   assert.equal(run.errorCode, 'OWNER_LOST');
   assert.equal(run.ownershipRetained, true);
+  assert.equal(run.approvalState, 'not_required');
+  assert((await query('run', 'events', id)).events.some(event =>
+    event.type === 'approval_invalidated' && event.approvalId === approvalId && event.reason === 'owner_lost'));
 });
 
-test('the read-only preview denies approvals and blocks projects with additional path rules', { timeout: 15000 }, async t => {
-  const { registration, project, start, query } = await setup(t);
-  const denied = start('approval');
-  const { run: { id } } = await denied.next();
-  assert.equal((await denied.next()).run.state, 'completed');
-  assert.equal((await denied.closed)[0], 0);
-  assert.doesNotMatch(JSON.stringify(await query('run', 'events', id)), /private-command-marker/);
+test('CLI waits for a durable denial and sends only a negative provider response', { timeout: 15000 }, async t => {
+  const { start, query } = await setup(t);
+  for (const scenario of ['approval-early', 'approval-permissions']) {
+    const launched = start(scenario);
+    const { run: { id } } = await launched.next();
+    const { approvalId } = await waitForApproval(query, id, t.signal);
+    const { run: waiting } = await query('run', 'show', id);
+    assert.equal(waiting.state, 'awaiting_approval');
+    assert.equal(waiting.approvalState, 'pending');
+    await assert.rejects(query('run', 'deny', id, '00000000-0000-0000-0000-000000000000'), /APPROVAL_NOT_PENDING/);
+    const submissions = await Promise.allSettled([query('run', 'deny', id, approvalId), query('run', 'deny', id, approvalId)]);
+    assert.deepEqual(submissions.map(item => item.status).sort(), ['fulfilled', 'rejected']);
+    const { run } = await launched.next();
+    assert.equal(run.state, 'completed');
+    assert.equal(run.approvalState, 'rejected');
+    assert.equal((await launched.closed)[0], 0);
+    const { events } = await query('run', 'events', id);
+    assert.deepEqual(events.filter(event => event.type.startsWith('approval_')).map(event => [event.type, event.approvalId]),
+      [['approval_requested', approvalId], ['approval_denied', approvalId]]);
+    assert.doesNotMatch(JSON.stringify(events), /private-command-marker|network|itemId/);
+  }
+});
+
+test('cancelling a pending approval invalidates it and interrupts the turn', { timeout: 15000 }, async t => {
+  const { start, query } = await setup(t);
+  const launched = start('approval');
+  const { run: { id } } = await launched.next();
+  const { approvalId } = await waitForApproval(query, id, t.signal);
+  const { run: cancel } = await query('run', 'cancel', id);
+  assert.equal(cancel.state, 'cancelling');
+  assert.equal(cancel.approvalState, 'not_required');
+  await assert.rejects(query('run', 'deny', id, approvalId), /APPROVAL_NOT_PENDING/);
+  assert.equal((await launched.next()).run.state, 'cancelled');
+  assert.equal((await launched.closed)[0], 130);
+  assert.deepEqual((await query('run', 'events', id)).events.filter(event => event.type.startsWith('approval_'))
+    .map(event => [event.type, event.approvalId]), [['approval_requested', approvalId], ['approval_invalidated', approvalId]]);
+});
+
+test('an IPC denial delivery failure preserves the committed denial and interrupts ownership', { timeout: 15000 }, async t => {
+  const { start, query } = await setup(t);
+  const launched = start('approval-delivery-failure');
+  const { run: { id } } = await launched.next();
+  const { approvalId } = await waitForApproval(query, id, t.signal);
+  await query('run', 'deny', id, approvalId);
+  const { run } = await launched.next();
+  assert.equal((await launched.closed)[0], 1);
+  assert.equal(run.state, 'interrupted');
+  assert.equal(run.ownershipRetained, true);
+  const { events } = await query('run', 'events', id);
+  assert.deepEqual(events.filter(event => event.type.startsWith('approval_')).map(event => [event.type, event.approvalId]),
+    [['approval_requested', approvalId], ['approval_denied', approvalId], ['approval_denial_delivery_failed', approvalId]]);
+  await assert.rejects(query('run', 'deny', id, approvalId), /APPROVAL_NOT_PENDING/);
+});
+
+test('an unsolicited terminal notification cannot finish a run with a pending approval', { timeout: 15000 }, async t => {
+  const { start, query } = await setup(t);
+  const launched = start('approval-ended');
+  const { run: { id } } = await launched.next();
+  const { run } = await launched.next();
+  assert.equal((await launched.closed)[0], 1);
+  assert.equal(run.state, 'failed');
+  assert.equal(run.approvalState, 'not_required');
+  assert((await query('run', 'events', id)).events.some(event =>
+    event.type === 'approval_invalidated' && event.reason === 'run_ended'));
+});
+
+test('the read-only preview blocks projects with additional path rules', { timeout: 15000 }, async t => {
+  const { registration, project, query } = await setup(t);
   await query('project', 'set-path', registration.id, project, '--access', 'deny');
   await assert.rejects(query('run', 'codex', registration.id, '--prompt', prompt), { code: 1 });
-  assert.equal((await query('run', 'list')).runs.length, 1);
+  assert.equal((await query('run', 'list')).runs.length, 0);
 });
 
 for (const scenario of ['unsafe', 'unexpected-request']) {

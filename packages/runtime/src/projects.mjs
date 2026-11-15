@@ -125,8 +125,19 @@ export class ProjectRegistry {
       requested: { sandbox: 'workspace-write', commandNetwork: false, approvalMode: 'manual', pathLifetime: 'until-removed' },
       effective: null,
       executionAvailable: false,
-      reason: 'Saved settings only. Codex task execution, sandbox enforcement and approval decisions are unavailable.'
+      reason: 'Saved settings only. The CLI read-only preview cannot apply these workspace-write settings.'
     };
+  }
+
+  async codexTarget(id) {
+    const project = this.#project(id);
+    if (await availability(project) !== 'available' || this.#project(id).identity !== project.identity) {
+      throw invalid('The project directory is unavailable or has changed.');
+    }
+    if (this.#db.prepare('SELECT 1 FROM project_paths WHERE project_id=? LIMIT 1').get(id)) {
+      throw new RuntimeError('SCOPE_DENIED', 'The Codex read-only preview cannot apply additional registered path rules.');
+    }
+    return { workspace: project.path, fileId: project.identity };
   }
 
   inspectPath(input) {

@@ -1,8 +1,8 @@
 # Workspace permissions and approval modes
 
-Status: R04 registry and preview implemented. The current product implements Codex
-connection checks and fixture execution. The registry does not enable real
-agent execution or claim sandbox enforcement on any OS.
+Status: R04 registry and requested-policy preview implemented. The separate
+[read-only CLI preview](codex-read-only.md) uses a fixed policy. Saving workspace
+permissions does not apply them to execution.
 
 ## User-facing contract
 

@@ -14,8 +14,8 @@ if (help === null) {
   console.log(version);
 } else if (args[0] === 'status' && (args.length === 1 || (args.length === 2 && args[1] === '--json'))) {
   const status = { ...getStatus(), version };
-  console.log(args[1] === '--json' ? JSON.stringify(status) :
-    `Organis ${status.version}\nStage: ${status.stage}\nPlatform: ${status.platform}/${status.arch}\nLocal fixture execution: available\nCodex connection check: available; agent execution: not implemented`);
+  console.log(args[1] === '--json' ? JSON.stringify({ ...status, codexReadOnlyExecutionPreview: true }) :
+    `Organis ${status.version}\nStage: ${status.stage}\nPlatform: ${status.platform}/${status.arch}\nLocal fixture execution: available\nCodex connection check and read-only execution preview: available`);
 } else if (['agent', 'project'].includes(args[0])) {
   try {
     if (args[0] === 'agent') {

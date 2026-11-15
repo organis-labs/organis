@@ -67,6 +67,7 @@ for platform evidence and diagnostic behavior.
 | `project remove <project-id>` | Remove the project and its path registrations. |
 | `project set-path <project-id> <path> [--access read\|write\|deny]` | Save requested access to an absolute path. The default is `read`. |
 | `project remove-path <project-id> <path-id>` | Remove one path registration. |
+| `run codex <project-id> --prompt <text>` | Run the read-only Codex preview for a registered project. |
 | `run fixture --workspace <directory>` | Run the bundled deterministic test. Use a workspace you trust. |
 | `run list` / `run show <run-id>` | List runs or inspect one run. |
 | `run events <run-id> [--after <sequence>]` | Show events after an exclusive sequence cursor. |
@@ -79,7 +80,7 @@ The default state directory is `~/.organis/runtime`, shared with the desktop.
 Project commands print JSON, formatted by default and compact with `--json`.
 Saved project access records are preferences.
 
-Fixture JSON output normally contains `accepted` followed by `result` on stdout.
+Run JSON output normally contains `accepted` followed by `result` on stdout.
 Ctrl+C while observing a duplicate submission, or a second interrupt while
 waiting for cancellation, can produce `observation-stopped` in place of `result`
 and exit with code 130. Termination remains unconfirmed in that case. A wait
@@ -93,6 +94,29 @@ The fixture accepts `--mode complete|fail|wait` (default `complete`),
 submission. See the [local execution contract](local-execution.md) for lifecycle
 and recovery behavior, and the [CLI update instructions](../README.md#cli-updates)
 for upgrade requirements.
+
+### Read-only Codex preview
+
+1. Run `organis agent codex check` and sign in in Codex if prompted.
+2. Register a trusted directory with `organis project add <absolute-directory> --json`.
+3. Use the returned project ID in
+   `organis run codex <project-id> --prompt "Reply with READY" --json`.
+   For text that starts with `--`, use `--prompt=<text>`. For example,
+   `organis run codex <project-id> --prompt="--help"` sends the literal prompt.
+4. Inspect the returned run ID with `organis run show <run-id>` and
+   `organis run events <run-id>`. Use `organis run cancel <run-id>` from another
+   terminal or press Ctrl+C to request cancellation.
+
+`--executable <absolute-path>` selects a native Codex executable instead of
+searching PATH. `--command-id <uuid>` identifies a retry of the same submission
+while its project registration remains valid.
+The preview accepts up to 16,384 UTF-8 bytes in `--prompt`, runs one ephemeral turn,
+and has a 120-second deadline. Use text you intend to send to the signed-in Codex
+provider. The task's final answer is saved locally and returned in a completed
+`result`. The CLI accepts the prompt as an argument, so shells and OS process
+inspection may expose it. The read-only preview supports projects without
+additional path rules. See the [preview contract](specs/codex-read-only.md) for
+its capability and retention limits.
 
 ## Help and documentation conventions
 

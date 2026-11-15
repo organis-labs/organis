@@ -1,7 +1,7 @@
 # Organis product roadmap
 
 Updated: 2026-11-10. Status: M0 distribution baseline, M1 fixture implementation,
-R03 Codex feasibility/connection checks, and the R04 project registry preview;
+R03 Codex feasibility/connection checks and the R04 registry and CLI read-only previews;
 later milestones remain a reviewable planning draft. Future milestones below
 are proposed sequencing, not implemented features, release promises, or approval
 to make security, licensing, hosting, or data-retention decisions.
@@ -47,8 +47,8 @@ the PR records actual per-platform results for the tested source revision.
 | Desktop update | Real replacement/relaunch tested from local beta0 fixtures to public beta1 on Windows, macOS and WSL2 Linux |
 | Update limits | Fixture was not a historical public release; Windows requires NSIS interaction; Mac used the button's IPC bridge; bare-metal Linux not verified |
 | CLI update | Implemented verified staging and atomic version selection; unit/recovery coverage and scoped Mac simulated-old-version test, not full historical upgrades on every OS |
-| Runtime | M1 fixture lifecycle, versioned SQLite persistence, command deduplication and recovery; no real agent, approval decisions or provider integration |
-| Codex connection | R03 installed-CLI/version/authentication check in CLI and desktop; [decision and evidence](decisions/first-agent-adapter.md); task execution remains R04 |
+| Runtime | M1 fixture lifecycle, versioned SQLite persistence, command deduplication and recovery; R04 CLI read-only Codex preview |
+| Codex connection | R03 installed-CLI/version/authentication check in CLI and desktop; [decision and evidence](decisions/first-agent-adapter.md); [R04 read-only CLI slice](specs/codex-read-only.md) |
 | Remote / sync / mobile | Not implemented |
 | License | Not selected; public source is not an open-source license grant |
 
@@ -178,8 +178,8 @@ sandbox restrictions in both CLI and desktop. Approval modes are manual individu
 requests, bounded plan preapproval, automatic except risky actions, and explicit
 full access. Keep access boundaries separate from approval routing. This is a
 design requirement. The registry stores requested path access and reports effective
-policy as unavailable. The approval engine and real execution are not yet
-implemented. Each mode must pass its enforcement gates before being offered.
+policy as unavailable. The CLI read-only preview runs with a fixed policy.
+The four approval modes must each pass their enforcement gates before being offered.
 
 Deliver executable/version discovery, capability reporting, supported login handoff,
 workspace selection, real progress events and normalized results. Add a second

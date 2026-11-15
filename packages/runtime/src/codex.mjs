@@ -20,9 +20,14 @@ const messages = Object.freeze({
   CODEX_EXIT_FAILED: 'Codex did not exit cleanly after the check. Check Codex locally before retrying.',
   CODEX_AUTH_REQUIRED: 'Sign in using codex login in your terminal, then check again.',
   CODEX_SANDBOX_REQUIRED: 'Finish Windows sandbox setup in Codex before running tasks.',
-  CODEX_AUTH_UNKNOWN: 'Codex returned an unknown authentication status. Check Codex locally.'
+  CODEX_AUTH_UNKNOWN: 'Codex returned an unknown authentication status. Check Codex locally.',
+  CODEX_RUN_TIMEOUT: 'The Codex task exceeded its time limit.',
+  CODEX_RUN_FAILED: 'The Codex turn did not complete.',
+  CODEX_POLICY_UNVERIFIED: 'Codex did not confirm the read-only execution policy.',
+  CODEX_MCP_UNSUPPORTED: 'The read-only preview requires a Codex configuration without MCP server definitions.'
 });
-function fault(code) { return Object.assign(new Error(messages[code]), { code }); }
+export function codexFault(code) { return Object.assign(new Error(messages[code]), { code }); }
+const fault = codexFault;
 
 export function codexEnvironment(source = process.env) {
   return Object.fromEntries(Object.entries(source).filter(([name]) =>
@@ -99,7 +104,7 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
       const authenticated = auth !== null;
       const code = !authenticated && account.requiresOpenaiAuth ? 'CODEX_AUTH_REQUIRED'
         : sandbox !== 'not-checked' && sandbox !== 'ready' ? 'CODEX_SANDBOX_REQUIRED' : null;
-      result = { ok: !code, code, message: code ? messages[code] : 'Codex connection verified. Task execution is not available yet.',
+      result = { ok: !code, code, message: code ? messages[code] : 'Codex connection verified. This check does not run a task.',
         authentication: { status: authenticated ? 'signed-in' : account.requiresOpenaiAuth ? 'signed-out' : 'not-required', kind: auth?.type ?? null }, sandbox };
     } catch (error) {
       const code = Object.hasOwn(messages, error.code) ? error.code : 'CODEX_PROTOCOL_ERROR';
@@ -118,14 +123,14 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
       capabilities: { connectionCheck: true, taskExecution: false, interactiveApproval: false, resume: false } };
 
     function start(args) {
-      return new Connection(launch(selected, args, { cwd: directory, env, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }), abort.signal, closeMs);
+      return new CodexConnection(launch(selected, args, { cwd: directory, env, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }), abort.signal, closeMs);
     }
   };
 }
 export const checkCodex = createCodexChecker();
 
-class Connection {
-  constructor(child, signal, closeMs) {
+export class CodexConnection {
+  constructor(child, signal, closeMs, onMessage) {
     this.child = child;
     this.signal = signal;
     this.closeMs = closeMs;
@@ -157,13 +162,16 @@ class Connection {
           const message = JSON.parse(line);
           if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error();
           if (message.method) {
-            if (message.id !== undefined) this.send({ id: message.id, error: { code: -32601, message: 'Connection checks do not support server requests.' } });
+            if (onMessage) onMessage(message);
+            else if (message.id !== undefined) this.send({ id: message.id, error: { code: -32601, message: 'Connection checks do not support server requests.' } });
           } else if (this.pending.has(message.id)) {
             const item = this.pending.get(message.id); this.pending.delete(message.id);
             if (message.error || !Object.hasOwn(message, 'result')) item.reject(fault('CODEX_PROTOCOL_ERROR'));
             else item.resolve(message.result);
           }
-        } catch { this.fail(fault('CODEX_PROTOCOL_ERROR')); }
+        } catch (error) {
+          this.fail(Object.hasOwn(messages, error.code) ? error : fault('CODEX_PROTOCOL_ERROR'));
+        }
       }
     });
     child.once('error', () => this.fail(fault('CODEX_START_FAILED')));

@@ -12,10 +12,19 @@ if (operation === '--version') {
   const done = status => notify('turn/completed', { threadId, turn: { id: turnId, status } });
   const input = createInterface({ input: process.stdin });
   let openedThread = false;
+  function requestApproval() {
+    const permission = scenario === 'approval-permissions';
+    send({
+      id: 'approve', method: permission ? 'item/permissions/requestApproval' : 'item/commandExecution/requestApproval',
+      params: { threadId, turnId, itemId: 'mock-item', startedAtMs: 1, command: 'private-command-marker',
+        ...(permission ? { cwd: process.cwd(), permissions: { network: { enabled: true } } } : {}) }
+    });
+  }
   input.on('line', line => {
     const { method, id, params, result } = JSON.parse(line);
     if (id === 'approve') {
-      if (result?.decision !== 'decline') process.exit(88);
+      const want = scenario === 'approval-permissions' ? { permissions: {}, scope: 'turn' } : { decision: 'decline' };
+      if (JSON.stringify(result) !== JSON.stringify(want)) process.exit(88);
       done('completed');
       return;
     }
@@ -46,13 +55,12 @@ if (operation === '--version') {
           notify('item/completed', { threadId, turnId, item: { type: 'agentMessage', text: 'SYNTHETIC_ANSWER' } });
           done('completed');
         }
+        if (['approval-early', 'approval-ended'].includes(scenario)) requestApproval();
         reply({ turn: { id: turnId, status: 'inProgress' } });
         if (scenario === 'option-like-prompt') done(params.input?.[0]?.text === '--help' ? 'completed' : 'failed');
         if (scenario === 'failure') done('failed');
-        if (scenario === 'approval') setTimeout(() => send({
-          id: 'approve', method: 'item/commandExecution/requestApproval',
-          params: { threadId, turnId, itemId: 'mock-item', startedAtMs: 1, command: 'private-command-marker' }
-        }), 100);
+        if (['approval', 'approval-permissions', 'approval-delivery-failure'].includes(scenario)) requestApproval();
+        if (scenario === 'approval-ended') done('completed');
         if (scenario === 'unsafe') notify('item/started', { threadId, turnId, item: { type: 'commandExecution' } });
         if (scenario === 'unexpected-request') setTimeout(() => send({
           id: 'unexpected', method: 'mcpServer/elicitation/request', params: { threadId, turnId }

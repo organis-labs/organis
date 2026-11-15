@@ -304,9 +304,10 @@ non-local environments, repeated IDs and more than 256 requests per turn stop
 the intake. Route server-initiated requests separately from notifications and
 responses. The execution coordinator must record the first stop reason and
 stop its session without sending a reply on that outcome.
-This component
-has synthetic protocol tests and has no production transport or decision-store
-integration yet. It does not establish native sandbox or common risk gate coverage.
+The [read-only CLI preview](codex-read-only.md#pending-requests-and-denial) wires
+this intake to a durable pending request, denial and run cancellation. It stores
+the approval ID and method in the existing event store. Authority grants and
+native risk-gate acceptance remain separate work.
 
 This specification completes the policy-definition portion of R04, not R04/M2
 execution acceptance. Implement in this order:

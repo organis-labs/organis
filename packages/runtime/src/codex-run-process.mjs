@@ -1,5 +1,6 @@
 
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { CodexConnection, codexEnvironment, codexFault, resolveCodex, testedCodexVersions } from './codex.mjs';
@@ -22,9 +23,12 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
   let threadId;
   let turnId;
   let intake;
+  let approval;
   let answer = '';
   let ready = false;
   let mayHaveStartedTurn = false;
+  let turnReported = false;
+  let turnFinished = false;
   let unexpectedTool = false;
   let complete;
   const completed = new Promise(resolve => { complete = resolve; });
@@ -42,6 +46,7 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
     }
   };
   signal.addEventListener('abort', cancel, { once: true });
+  process.on('message', denyApproval);
   if (signal.aborted) cancel();
   try {
     abort.signal.throwIfAborted();
@@ -113,7 +118,8 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
     turnId = started.turn.id;
     clearTimeout(cancelBeforeTurnId);
     intake = createCodexApprovalIntake({ version, connectionId: threadId, threadId, turnId });
-    await report({ type: 'turn', threadId, turnId, version });
+    if (!await report({ type: 'turn', threadId, turnId, version })) throw protocolError();
+    turnReported = true;
     for (const message of pending) onMessage(message);
     pending.length = 0;
     const event = await waitForTurn();
@@ -152,6 +158,7 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
     clearTimeout(timeout);
     clearTimeout(cancelBeforeTurnId);
     signal.removeEventListener('abort', cancel);
+    process.off('message', denyApproval);
     intake?.close();
     try {
       await connection?.close();
@@ -213,20 +220,29 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
 
   function onMessage(message) {
     const { method, params } = message;
+    if (mayHaveStartedTurn && !turnReported) { pending.push(message); return; }
     if (message.id !== undefined) {
       const decision = intake?.handle(threadId, message);
-      if (decision?.disposition !== 'deny') {
+      if (decision?.disposition !== 'deny' || approval || turnFinished) {
         markUncertain();
         throw protocolError();
       }
-      connection.send(decision.response);
+      if (signal.aborted) return;
+      approval = { id: randomUUID(), response: decision.response };
+      // Only the owner's persisted denial can release this response. Cancellation
+      // interrupts the turn if the owner stopped accepting approval requests.
+      void report({ type: 'approval', approvalId: approval.id, method }).then(sent => {
+        if (!sent && !signal.aborted) connection.fail(protocolError());
+      });
       return;
     }
     if (method !== 'turn/completed' && method !== 'item/started' && method !== 'item/completed') return;
     if (params?.threadId !== threadId || !threadId || !mayHaveStartedTurn) return;
-    if (!turnId) { pending.push(message); return; }
     if (method === 'turn/completed') {
-      if (params.turn?.id === turnId) complete(params.turn);
+      if (params.turn?.id === turnId) {
+        turnFinished = true;
+        complete(approval ? { status: 'approval-unanswered' } : params.turn);
+      }
     } else if (params.turnId === turnId) {
       const item = params.item;
       if (!['agentMessage', 'userMessage', 'reasoning', 'plan'].includes(item?.type)) {
@@ -237,6 +253,14 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
         answer = item.text.slice(0, 32768);
       }
     }
+  }
+
+  function denyApproval(message) {
+    if (message?.type !== 'deny-approval' || !approval || message.approvalId !== approval.id || signal.aborted) return;
+    const { response } = approval;
+    approval = undefined;
+    try { connection.send(response); }
+    catch { connection.fail(protocolError()); }
   }
 
   function markUncertain() {

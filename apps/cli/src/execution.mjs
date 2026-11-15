@@ -6,18 +6,21 @@ const valueOptions = new Set(['workspace', 'state-dir', 'command-id', 'mode', 'd
 
 export async function executionCommand(args) {
   const command = args.shift();
-  const needsId = ['codex', 'show', 'events', 'cancel'].includes(command);
+  const needsId = ['codex', 'show', 'events', 'cancel', 'deny'].includes(command);
   const id = needsId ? args.shift() : undefined;
+  const approvalId = command === 'deny' ? args.shift() : undefined;
   const allowed = {
     fixture: ['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'json'],
     codex: ['prompt', 'executable', 'state-dir', 'command-id', 'json'],
     list: ['state-dir', 'json'], show: ['state-dir', 'json'],
     events: ['state-dir', 'after', 'json'], cancel: ['state-dir', 'command-id', 'json'],
+    deny: ['state-dir', 'json'],
     reconcile: ['state-dir', 'json']
   }[command];
   if (!Array.isArray(allowed) || (needsId && (!id || id.startsWith('--')))) {
-    throw usageError('Use run codex <project-id>|fixture|list|show <id>|events <id>|cancel <id>|reconcile.');
+    throw usageError('Use run codex <project-id>|fixture|list|show <id>|events <id>|cancel <id>|deny <id> <approval-id>|reconcile.');
   }
+  if (command === 'deny' && (!approvalId || approvalId.startsWith('--'))) throw usageError('An approval ID is required.');
   const options = {};
   while (args.length) {
     const flag = args.shift();
@@ -86,6 +89,7 @@ export async function executionCommand(args) {
     else if (command === 'show') print('run', { run: runtime.getRun(id) });
     else if (command === 'events') print('events', { events: runtime.events(id, Number(options.after ?? 0)) });
     else if (command === 'cancel') print('cancel-requested', { run: await runtime.cancel(id, { commandId: options['command-id'] }) });
+    else if (command === 'deny') print('approval-denied', { approvalId, run: runtime.denyApproval(id, approvalId) });
     else print('reconciled', { runs: await runtime.reconcile() });
   } finally {
     process.off('SIGINT', interrupt);

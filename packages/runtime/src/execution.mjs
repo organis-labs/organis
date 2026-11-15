@@ -10,6 +10,7 @@ import {
 } from './contracts.mjs';
 import { Store } from './store.mjs';
 import { codexEnvironment } from './codex.mjs';
+import { isCodexApprovalMethod } from './codex-approval.mjs';
 import { killOwnedTree, pidAlive, waitForOwnedExit } from './process-tree.mjs';
 
 export {
@@ -283,6 +284,23 @@ export class LocalRuntime {
     return this.#requestCancel(id, commandId);
   }
 
+  denyApproval(id, approvalId) {
+    if (typeof approvalId !== 'string' || !UUID.test(approvalId)) {
+      throw new RuntimeError('INVALID_ARGUMENT', 'approvalId must be a UUID.');
+    }
+    return this.#db(() => this.#store.tx(() => {
+      const row = this.#requireRow(id);
+      if (row.mode !== CODEX_MODE || row.state !== 'awaiting_approval' || row.approval_state !== 'pending'
+          || this.#latestApproval(id)?.approvalId !== approvalId) {
+        throw new RuntimeError('APPROVAL_NOT_PENDING', 'This approval is no longer pending for the run.');
+      }
+      assertTransition(row.state, 'running');
+      this.#store.run("UPDATE runs SET state='running', approval_state='rejected', updated_at=? WHERE id=?", now(), id);
+      this.#store.addEvent(id, 'approval_denied', { approvalId });
+      return this.#snapshot(id);
+    }));
+  }
+
   reconcile() {
     this.#assertOpen();
     const rows = this.#db(() => this.#store.all(
@@ -302,6 +320,19 @@ export class LocalRuntime {
   }
 
   // ---- internals ----
+
+  #latestApproval(id) {
+    const row = this.#store.get(
+      "SELECT data FROM events WHERE run_id=? AND type='approval_requested' ORDER BY sequence DESC LIMIT 1", id);
+    return row ? JSON.parse(row.data) : null;
+  }
+
+  // Run invalidation and the transition that caused it share one transaction.
+  #invalidateApproval(row, reason) {
+    if (row.approval_state !== 'pending') return;
+    this.#store.run("UPDATE runs SET approval_state='not_required' WHERE id=?", row.id);
+    this.#store.addEvent(row.id, 'approval_invalidated', { approvalId: this.#latestApproval(row.id)?.approvalId, reason });
+  }
 
   #resolveWorkspace(workspace) {
     const invalid = message => new RuntimeError('INVALID_WORKSPACE', message);
@@ -366,12 +397,14 @@ export class LocalRuntime {
       if (!dead && Date.now() - failedAt < 10000) continue;
       try {
         this.#store.tx(() => {
+          const row = this.#runRow(id);
           const stamp = now();
           const result = this.#store.run(
             `UPDATE runs SET state='interrupted', error_code='PERSISTENCE_FAILED', ended_at=?, updated_at=?, ownership_retained=? `
             + `WHERE id=? AND owner_id=? AND state IN (${LIVE_SQL})`,
             stamp, stamp, dead ? 0 : 1, id, this.ownerId);
           if (result.changes) {
+            this.#invalidateApproval(row, 'persistence_failed');
             if (dead) this.#store.run('UPDATE workspaces SET busy_run_id=NULL WHERE busy_run_id=?', id);
             this.#store.addEvent(id, 'interrupted', { reason: 'persistence_failed' });
             if (!dead) this.#store.addEvent(id, 'ownership_retained', { processPid: local?.child?.pid ?? null, grandchildPid: local?.grandchildPid ?? null });
@@ -393,7 +426,22 @@ export class LocalRuntime {
     for (const local of [...this.#locals.values()]) {
       if (local.done || local.persistenceFailed || local.cancelPromise || Date.now() < local.nextCancelAt) continue;
       try {
-        if (this.#runRow(local.id)?.state === 'cancelling') this.#cancelLocal(local);
+        const row = this.#runRow(local.id);
+        if (row?.state === 'cancelling') this.#cancelLocal(local);
+        else if (local.approvalId && row?.state === 'running' && row.approval_state === 'rejected') {
+          // The denial was committed by a client. Only the owner can deliver it.
+          const approvalId = local.approvalId;
+          local.approvalId = null;
+          const failed = () => this.#guard(local, () => {
+            this.#store.tx(() => this.#store.addEvent(local.id, 'approval_denial_delivery_failed', { approvalId }));
+            // Signal the worker through its disconnect handler and reconcile its
+            // termination. A lost transport never replays the decision.
+            if (local.child.connected) local.child.disconnect();
+          });
+          if (local.child.connected) {
+            local.child.send({ type: 'deny-approval', approvalId }, error => { if (error) failed(); });
+          } else failed();
+        }
       } catch { /* retry on the next tick */ }
     }
     this.#retryPending();
@@ -519,6 +567,19 @@ export class LocalRuntime {
     } else if (message.type === 'turn') {
       const { threadId, turnId, version } = message;
       this.#store.tx(() => this.#store.addEvent(local.id, 'codex_turn_started', { threadId, turnId, version }));
+    } else if (message.type === 'approval') {
+      const { approvalId, method } = message;
+      if (typeof approvalId !== 'string' || !UUID.test(approvalId) || !isCodexApprovalMethod(method)) {
+        throw new Error('Unexpected approval message from the local worker.');
+      }
+      const queued = this.#store.tx(() => {
+        const result = this.#store.run(
+          "UPDATE runs SET state='awaiting_approval', approval_state='pending', updated_at=? WHERE id=? AND owner_id=? AND state='running'",
+          now(), local.id, this.ownerId);
+        if (result.changes) this.#store.addEvent(local.id, 'approval_requested', { approvalId, method });
+        return Boolean(result.changes);
+      });
+      if (queued) local.approvalId = approvalId;
     } else if (message.type === 'unsafe') {
       local.unsafe = true;
       this.#store.tx(() => this.#store.addEvent(local.id, 'codex_containment_unverified'));
@@ -548,11 +609,11 @@ export class LocalRuntime {
     if (local.cancelPromise || local.done || local.persistenceFailed) return;
     const { code, signal } = local.exitInfo;
     if (!dead || local.unsafe || (local.codex && !local.result?.processClosed)) {
-      this.#terminate(local, ['running'], 'interrupted', 'TERMINATION_UNVERIFIED', code, true);
+      this.#terminate(local, ['running', 'awaiting_approval'], 'interrupted', 'TERMINATION_UNVERIFIED', code, true);
       return;
     }
-    const ok = code === 0 && signal === null && local.result?.ok === true && dead;
-    this.#terminate(local, ['running'], ok ? 'completed' : 'failed',
+    const ok = code === 0 && signal === null && local.result?.ok === true && this.#runRow(local.id)?.state === 'running';
+    this.#terminate(local, ['running', 'awaiting_approval'], ok ? 'completed' : 'failed',
       ok ? null : (local.result?.code || (local.codex ? 'CODEX_RUN_FAILED' : 'FIXTURE_FAILED')), code);
   }
 
@@ -562,12 +623,14 @@ export class LocalRuntime {
     let changed;
     try {
       changed = this.#store.tx(() => {
+        const row = this.#runRow(local.id);
         const stamp = now();
         const from = fromStates.map(item => `'${item}'`).join(',');
         const result = this.#store.run(
           `UPDATE runs SET state=?, error_code=?, exit_code=?, ended_at=?, updated_at=?, ownership_retained=? WHERE id=? AND owner_id=? AND state IN (${from})`,
           state, errorCode, exitCode ?? null, stamp, stamp, retainOwnership ? 1 : 0, local.id, this.ownerId);
         if (!result.changes) return false;
+        this.#invalidateApproval(row, 'run_ended');
         if (!retainOwnership) this.#store.run('UPDATE workspaces SET busy_run_id=NULL WHERE busy_run_id=?', local.id);
         else this.#store.addEvent(local.id, 'ownership_retained', { reason: 'termination_unverified' });
         if (state === 'completed' && local.codex && local.result.answer) {
@@ -627,11 +690,13 @@ export class LocalRuntime {
         return;
       }
       this.#store.tx(() => {
+        const row = this.#runRow(local.id);
         const stamp = now();
         const result = this.#store.run(
           "UPDATE runs SET state='cancelled', error_code=NULL, ownership_retained=0, exit_code=?, ended_at=?, updated_at=? WHERE id=? AND owner_id=? AND state='cancelling'",
           exitCode, stamp, stamp, local.id, this.ownerId);
         if (!result.changes) return;
+        this.#invalidateApproval(row, 'run_cancelled');
         this.#store.run('UPDATE workspaces SET busy_run_id=NULL WHERE busy_run_id=?', local.id);
         this.#store.addEvent(local.id, 'cancelled', { exitCode });
       });
@@ -670,6 +735,7 @@ export class LocalRuntime {
         const stamp = now();
         this.#store.run(
           'UPDATE runs SET state=?, cancel_requested_at=?, updated_at=? WHERE id=?', 'cancelling', stamp, stamp, id);
+        this.#invalidateApproval(row, 'run_cancelled');
         this.#store.addEvent(id, 'cancel_requested', { commandId: commandId ?? null });
       }
       return this.#snapshot(id);
@@ -701,11 +767,17 @@ export class LocalRuntime {
       assertTransition(row.state, 'interrupted');
       const stamp = now();
       store.run("UPDATE runs SET state='interrupted', error_code='OWNER_LOST', ended_at=?, updated_at=? WHERE id=?", stamp, stamp, id);
+      this.#invalidateApproval(row, 'owner_lost');
       store.addEvent(id, 'interrupted', { reason: 'owner_lost' });
       changed = true;
       interruptedNow = true;
     }
     const fresh = this.#runRow(id);
+    if (fresh.state === 'interrupted' && fresh.approval_state === 'pending') {
+      // An older client can reconcile owner loss without knowing approval events.
+      this.#invalidateApproval(fresh, 'owner_lost');
+      changed = true;
+    }
     if (!interruptedNow && !fresh.ownership_retained) return null;
     const launchRequested = store.get("SELECT 1 FROM events WHERE run_id=? AND type='launch_requested' LIMIT 1", id);
     const readyRecorded = store.get("SELECT 1 FROM events WHERE run_id=? AND type IN ('fixture_ready','codex_process_ready') LIMIT 1", id);

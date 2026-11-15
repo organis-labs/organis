@@ -14,8 +14,7 @@ export const RUN_STATES = freeze(['queued', 'running', 'awaiting_approval', 'can
   'completed', 'failed', 'cancelled', 'interrupted']);
 export const LIVE_STATES = freeze(['queued', 'running', 'awaiting_approval', 'cancelling']);
 export const TERMINAL_STATES = freeze(['completed', 'failed', 'cancelled', 'interrupted']);
-// awaiting_approval is contract-only: no M1 code path enters it.
-export const IMPLEMENTED_STATES = freeze(RUN_STATES.filter(state => state !== 'awaiting_approval'));
+export const IMPLEMENTED_STATES = RUN_STATES;
 
 export const TRANSITIONS = freeze({
   queued: ['running', 'cancelling', 'cancelled', 'failed', 'interrupted'],
@@ -100,9 +99,9 @@ export const ENTITY_CONTRACTS = freeze({
   artifact: contract('contract-only',
     ['artifactId', 'runId', 'kind', 'uri', 'digest'],
     'Run outputs are not captured or stored in M1.'),
-  approval: contract('contract-only',
-    Object.keys(APPROVAL_IDENTITY_CONTRACT.fields),
-    'See APPROVAL_IDENTITY_CONTRACT. awaiting_approval is never entered.')
+  approval: contract('r04-denial-only',
+    ['approvalId', 'runId', 'method', 'sequence', 'at'],
+    'The read-only Codex preview records one pending request at a time and supports denial.')
 });
 
 // retryable: a client may submit a NEW command; the runtime never replays.
@@ -114,6 +113,7 @@ export const ERROR_CODES = freeze({
   COMMAND_CONFLICT: { retryable: false },
   INVALID_TRANSITION: { retryable: false },
   RUN_NOT_FOUND: { retryable: false },
+  APPROVAL_NOT_PENDING: { retryable: false },
   SCHEMA_TOO_NEW: { retryable: false },
   WORKSPACE_BUSY: { retryable: true },
   PERSISTENCE_FAILED: { retryable: true },

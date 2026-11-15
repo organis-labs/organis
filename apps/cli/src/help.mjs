@@ -83,6 +83,7 @@ Usage:
   organis run list
   organis run show <run-id>
   organis run events <run-id> [--after <sequence>]
+  organis run deny <run-id> <approval-id>
   organis run cancel <run-id> [--command-id <uuid>]
   organis run reconcile
 
@@ -118,6 +119,13 @@ the final reply is saved locally in run events. Press Ctrl+C or use
 organis run cancel <run-id> in another terminal to request cancellation.
 
 Exit codes: 0 completed, 1 failed or interrupted, 2 invalid arguments, 130 cancelled.`,
+  'run deny': `Deny a pending Codex request by its approval ID.
+
+Usage:
+  organis run deny <run-id> <approval-id> [--state-dir <directory>] [--json]
+
+Find the pending approval ID in organis run events <run-id>.
+Use the same state directory as the owning run.`,
   update: `Check for or install a CLI update.
 
 Usage:
@@ -131,7 +139,7 @@ Installing requires the standalone CLI bundle and a writable install location.`
 
 const groupedCommands = {
   project: new Set(['list', 'add', 'show', 'remove', 'set-path', 'remove-path']),
-  run: new Set(['codex', 'fixture', 'list', 'show', 'events', 'cancel', 'reconcile'])
+  run: new Set(['codex', 'fixture', 'list', 'show', 'events', 'deny', 'cancel', 'reconcile'])
 };
 
 export function getHelp(args) {

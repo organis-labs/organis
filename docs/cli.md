@@ -57,6 +57,21 @@ not make a model request or prove sandbox enforcement. Use `run codex` to
 send a read-only question. See the [connection contract](specs/codex-connection-check.md)
 for diagnostic behavior.
 
+### Claude Code connection
+
+```sh
+organis agent claude terminal
+organis agent claude check --json
+```
+
+The terminal command prints two commands for the installed, official Claude
+Code executable. Run the sign-in command first, then the sample question command.
+The latter disables tools and session persistence and prints the answer directly
+in the terminal. The CLI profile lives under `~/.organis/claude/cli`; use the
+desktop panel to get commands for the separate desktop profile. Neither profile
+uses the normal Claude Code configuration directory. Claude Code owns credential
+storage, including the macOS Keychain entry associated with each profile.
+
 ## Command reference
 
 | Command | Purpose |
@@ -72,10 +87,23 @@ for diagnostic behavior.
 | `run fixture --workspace <directory>` | Run the bundled deterministic test. Use a workspace you trust. |
 | `run list` / `run show <run-id>` | List runs or inspect one run. |
 | `run events <run-id> [--after <sequence>]` | Show events after an exclusive sequence cursor. |
+| `agent claude check [--executable <absolute-path>]` | Check the installed Claude Code CLI and its sign-in status without running a task. |
 | `run deny <run-id> <approval-id>` | Record a denial for the pending Codex request. |
 | `run cancel <run-id> [--command-id <uuid>]` | Request cancellation. Use `run show` to check the result. |
 | `run reconcile` | Reconcile interrupted runs. |
 | `update [--check]` | Check the installed CLI for updates. Without `--check`, install an available update from a writable standalone bundle. |
+
+`organis agent claude check --json` uses Claude Code's own `auth status`
+diagnostic. If signed out, run the sign-in command printed by
+`organis agent claude terminal` for this profile and retry.
+On Windows select the native Claude Code executable. Organis shows a
+normalized status and does not import credentials or run a Claude task.
+
+`organis run codex <project-id> --prompt <text> --show-approval` displays
+pending request details in the owning process. With `--json`, it emits an
+`approval-requested` record before the final result. Use this flag on a
+private terminal because a preview can contain command or patch text.
+Run events retain the request ID and method.
 
 All `project` and `run` commands accept `--state-dir <directory>` and `--json`.
 The default state directory is `~/.organis/runtime`, shared with the desktop.

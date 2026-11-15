@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCodexApprovalIntake } from '../packages/runtime/src/codex-approval.mjs';
+import { createCodexApprovalIntake, describeCodexApproval } from '../packages/runtime/src/codex-approval.mjs';
 
 const binding = { version: '0.164.0', connectionId: 'epoch-a', threadId: 'thread-a', turnId: 'turn-a' };
 const command = 'item/commandExecution/requestApproval';
@@ -10,6 +10,20 @@ const permissions = 'item/permissions/requestApproval';
 function request(method = command, id = 1, params = {}) {
   return { method, id, params: { threadId: binding.threadId, turnId: binding.turnId, itemId: 'item-a', startedAtMs: 42, ...params } };
 }
+
+test('command previews flag policy amendments that are not displayed', () => {
+  const params = { command: 'cat example.txt', cwd: '/synthetic', commandActions: [] };
+  assert.equal(describeCodexApproval(command, params).incomplete, false);
+  assert.equal(describeCodexApproval(command, {
+    ...params, proposedExecpolicyAmendment: null, proposedNetworkPolicyAmendments: null
+  }).incomplete, false);
+  assert.equal(describeCodexApproval(command, {
+    ...params, proposedExecpolicyAmendment: ['cat']
+  }).incomplete, true);
+  assert.equal(describeCodexApproval(command, {
+    ...params, proposedNetworkPolicyAmendments: [{ host: 'example.test', action: 'allow' }]
+  }).incomplete, true);
+});
 
 test('Codex approval intake declines action requests and grants no permissions', () => {
   const intake = createCodexApprovalIntake(binding);

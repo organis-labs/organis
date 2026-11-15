@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { CodexConnection, codexEnvironment, codexFault, resolveCodex, testedCodexVersions } from './codex.mjs';
-import { createCodexApprovalIntake } from './codex-approval.mjs';
+import { createCodexApprovalIntake, describeCodexApproval, describeCodexPatch } from './codex-approval.mjs';
 import { prepareCodexProfile } from './codex-profile.mjs';
 import { ProjectRegistry } from './projects.mjs';
 
@@ -25,6 +25,7 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
   let turnId;
   let intake;
   let approval;
+  let patch;
   let answer = '';
   let ready = false;
   let mayHaveStartedTurn = false;
@@ -235,9 +236,17 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
       approval = { id: randomUUID(), response: decision.response };
       // Only the owner's persisted denial can release this response. Cancellation
       // interrupts the turn if the owner stopped accepting approval requests.
-      void report({ type: 'approval', approvalId: approval.id, method }).then(sent => {
+      const preview = describeCodexApproval(method, params, patch);
+      patch = undefined;
+      void report({ type: 'approval', approvalId: approval.id, method, preview }).then(sent => {
         if (!sent && !signal.aborted) connection.fail(protocolError());
       });
+      return;
+    }
+    if (method === 'item/fileChange/patchUpdated') {
+      if (threadId && turnId && !approval && !turnFinished && params?.threadId === threadId && params.turnId === turnId) {
+        patch = describeCodexPatch(params);
+      }
       return;
     }
     if (method !== 'turn/completed' && method !== 'item/started' && method !== 'item/completed') return;

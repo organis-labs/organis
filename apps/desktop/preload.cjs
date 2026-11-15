@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('organisAgents', Object.freeze({
   chooseCodex: () => ipcRenderer.invoke('agents:chooseCodex'),
+  chooseClaude: () => ipcRenderer.invoke('agents:chooseClaude'),
+  checkClaude: () => ipcRenderer.invoke('agents:checkClaude'),
+  claudeTerminal: () => ipcRenderer.invoke('agents:claudeTerminal'),
   checkCodex: () => ipcRenderer.invoke('agents:checkCodex'),
   loginCodex: () => ipcRenderer.invoke('agents:loginCodex'),
   cancelLogin: () => ipcRenderer.invoke('agents:cancelLogin')

@@ -11,7 +11,7 @@ export async function executionCommand(args) {
   const approvalId = command === 'deny' ? args.shift() : undefined;
   const allowed = {
     fixture: ['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'json'],
-    codex: ['prompt', 'executable', 'state-dir', 'command-id', 'json'],
+    codex: ['prompt', 'executable', 'state-dir', 'command-id', 'show-approval', 'json'],
     list: ['state-dir', 'json'], show: ['state-dir', 'json'],
     events: ['state-dir', 'after', 'json'], cancel: ['state-dir', 'command-id', 'json'],
     deny: ['state-dir', 'json'],
@@ -44,6 +44,8 @@ export async function executionCommand(args) {
   let activeId;
   let interrupted = false;
   let ownsRun = false;
+  let approvalTimer;
+  let shownApprovalId;
   const stopObserving = () => {
     try { print('observation-stopped', { run: runtime.getRun(activeId), message: 'Observation stopped; this is not confirmation of termination. Inspect and reconcile the saved run.' }); }
     finally { process.exit(130); }
@@ -79,6 +81,16 @@ export async function executionCommand(args) {
         if (!ownsRun) stopObserving();
         await runtime.cancel(activeId);
       }
+      if (command === 'codex' && options['show-approval'] && ownsRun) {
+        approvalTimer = setInterval(() => {
+          let approval;
+          try { approval = runtime.pendingApproval(activeId); }
+          catch { return; } // A busy state store is retried on the next observation.
+          if (!approval || approval.approvalId === shownApprovalId) return;
+          shownApprovalId = approval.approvalId;
+          print('approval-requested', { runId: activeId, approval });
+        }, 250);
+      }
       const run = await runtime.wait(activeId);
       if (run.mode === 'codex-read-only' && run.state === 'completed') {
         const answer = runtime.events(activeId).find(event => event.type === 'codex_answer')?.text;
@@ -92,6 +104,7 @@ export async function executionCommand(args) {
     else if (command === 'deny') print('approval-denied', { approvalId, run: runtime.denyApproval(id, approvalId) });
     else print('reconciled', { runs: await runtime.reconcile() });
   } finally {
+    clearInterval(approvalTimer);
     process.off('SIGINT', interrupt);
     process.off('SIGTERM', interrupt);
     process.off('message', parentControl);

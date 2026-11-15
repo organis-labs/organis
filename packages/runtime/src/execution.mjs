@@ -287,6 +287,20 @@ export class LocalRuntime {
     return this.#requestCancel(id, commandId);
   }
 
+  pendingApproval(id) {
+    return this.#db(() => {
+      const row = this.#store.get(
+        "SELECT events.data FROM events JOIN runs ON runs.id=events.run_id WHERE runs.id=? AND runs.mode=? "
+        + "AND runs.state='awaiting_approval' AND runs.approval_state='pending' AND events.type='approval_requested' "
+        + "ORDER BY events.sequence DESC LIMIT 1", id, CODEX_MODE);
+      if (!row) return null;
+      const request = JSON.parse(row.data);
+      const local = this.#locals.get(id);
+      const preview = local?.approvalId === request.approvalId ? local.approvalPreview : undefined;
+      return { ...request, preview: preview ?? null };
+    });
+  }
+
   denyApproval(id, approvalId) {
     if (typeof approvalId !== 'string' || !UUID.test(approvalId)) {
       throw new RuntimeError('INVALID_ARGUMENT', 'approvalId must be a UUID.');
@@ -435,6 +449,7 @@ export class LocalRuntime {
           // The denial was committed by a client. Only the owner can deliver it.
           const approvalId = local.approvalId;
           local.approvalId = null;
+          local.approvalPreview = undefined;
           const failed = () => this.#guard(local, () => {
             this.#store.tx(() => this.#store.addEvent(local.id, 'approval_denial_delivery_failed', { approvalId }));
             // Signal the worker through its disconnect handler and reconcile its
@@ -582,7 +597,10 @@ export class LocalRuntime {
         if (result.changes) this.#store.addEvent(local.id, 'approval_requested', { approvalId, method });
         return Boolean(result.changes);
       });
-      if (queued) local.approvalId = approvalId;
+      if (queued) {
+        local.approvalId = approvalId;
+        local.approvalPreview = message.preview;
+      }
     } else if (message.type === 'unsafe') {
       local.unsafe = true;
       this.#store.tx(() => this.#store.addEvent(local.id, 'codex_containment_unverified'));

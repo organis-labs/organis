@@ -9,6 +9,7 @@
   <script src="renderer.js" defer></script>
   <script src="execution.js" defer></script>
   <script src="agents.js" defer></script>
+  <script src="claude-agents.js" defer></script>
   <script src="projects.js" defer></script>
 </head>
 <body>
@@ -33,6 +34,26 @@
         </div>
         <p id="codex-path">Use Codex from this device’s PATH, or choose its executable.</p>
         <p id="codex-status" role="status" aria-live="polite">Not checked.</p>
+      </div>
+    </section>
+    <section class="execution" aria-labelledby="claude-heading">
+      <div>
+        <h2 id="claude-heading">Connect Claude</h2>
+        <p>Use your installed Claude Code with a separate Organis desktop profile.</p>
+        <div class="update-actions">
+          <button id="check-claude" type="button">Check connection</button>
+          <button id="claude-terminal" type="button">Show terminal commands</button>
+          <button id="choose-claude" type="button">Choose executable</button>
+        </div>
+        <p id="claude-path">Use Claude Code from this device’s PATH, or choose its executable.</p>
+        <p id="claude-status" role="status" aria-live="polite">Not checked.</p>
+        <div id="claude-commands" hidden>
+          <p id="claude-terminal-help"></p>
+          <p><label for="claude-login-command">Official sign-in command</label></p>
+          <textarea id="claude-login-command" readonly rows="4" cols="60" spellcheck="false"></textarea>
+          <p><label for="claude-answer-command">First answer command</label></p>
+          <textarea id="claude-answer-command" readonly rows="4" cols="60" spellcheck="false"></textarea>
+        </div>
       </div>
     </section>
     <section id="projects" class="execution" aria-labelledby="projects-heading">
@@ -66,6 +87,11 @@
             <button id="cancel-codex-turn" type="button" hidden>Cancel question</button>
           </div>
           <p id="codex-turn-status" role="status"></p>
+          <details id="codex-approval" hidden>
+            <summary>Requested action</summary>
+            <p>Codex requested the action below. You can cancel this read-only run.</p>
+            <pre id="codex-approval-details"></pre>
+          </details>
           <pre id="codex-answer" aria-label="Codex answer" hidden></pre>
         </form>
       </div>

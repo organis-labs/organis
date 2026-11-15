@@ -39,11 +39,30 @@ chooseCodexButton.addEventListener('click', async () => {
 const questionForm = document.querySelector('#codex-question');
 const questionStatus = document.querySelector('#codex-turn-status');
 const answerView = document.querySelector('#codex-answer');
+const approvalView = document.querySelector('#codex-approval');
+const approvalDetails = document.querySelector('#codex-approval-details');
 const sendQuestion = document.querySelector('#send-codex');
 const cancelQuestion = document.querySelector('#cancel-codex-turn');
 const finished = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 let questionRunId;
 let questionActionError = false;
+
+function formatApproval({ approvalId, method, preview }) {
+  const lines = [`Request ID: ${approvalId}`, `Request type: ${method}`];
+  if (!preview) return [...lines, 'No action preview is available.'].join('\n');
+  if (preview.cwd) lines.push(`Working directory: ${preview.cwd}`);
+  if (preview.command) lines.push('', preview.command);
+  if (preview.requestedRoot) lines.push(`Requested root: ${preview.requestedRoot}`);
+  for (const target of preview.targets ?? []) lines.push(`${target.action} ${target.path}`);
+  for (const entry of preview.paths ?? []) lines.push(`${entry.access} ${entry.path}`);
+  if (preview.networkRequested) lines.push('Network access requested.');
+  for (const change of preview.changes ?? []) {
+    lines.push('', `${change.action} ${change.path}${change.moveTo ? ` → ${change.moveTo}` : ''}`);
+    if (change.diff) lines.push(change.diff);
+  }
+  if (preview.incomplete) lines.push('', 'Codex did not provide a complete action preview.');
+  return lines.join('\n');
+}
 
 questionForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -64,6 +83,9 @@ questionForm.addEventListener('submit', async event => {
     do {
       result = await window.organisExecution.codexResult(run.id).catch(() => null);
       if (result && finished.has(result.state)) break;
+      approvalView.hidden = !result?.approval;
+      const details = result?.approval ? formatApproval(result.approval) : '';
+      if (approvalDetails.textContent !== details) approvalDetails.textContent = details;
       const status = !result ? 'Unable to check this run. Retrying…' :
         result.state === 'awaiting_approval' ? 'Codex requested an action. You can cancel this read-only run.' :
         result.state === 'cancelling' ? 'Waiting for Codex to stop…' : 'Waiting for Codex…';
@@ -82,6 +104,8 @@ questionForm.addEventListener('submit', async event => {
     questionStatus.textContent = error.message;
   } finally {
     questionRunId = undefined;
+    approvalView.hidden = true;
+    approvalDetails.textContent = '';
     cancelQuestion.hidden = true;
     sendQuestion.disabled = false;
   }

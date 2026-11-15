@@ -67,6 +67,19 @@ function createWindow() {
           if (!document.querySelector('#codex-status').textContent.includes('Select an absolute path')) throw new Error('Missing Codex error not shown');
         })()`);
         console.log('ORGANIS_DESKTOP_CODEX_CHECK_SMOKE_OK');
+        await window.webContents.executeJavaScript(`(async () => {
+          const check = document.querySelector('#check-claude');
+          check.click();
+          const deadline = Date.now() + 10000;
+          while (check.disabled) {
+            if (Date.now() > deadline) throw new Error('Claude check did not finish');
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          if (!document.querySelector('#claude-status').textContent.includes('Select an absolute path')) {
+            throw new Error('Missing Claude error not shown');
+          }
+        })()`);
+        console.log('ORGANIS_DESKTOP_CLAUDE_CHECK_SMOKE_OK');
         if (unavailableSmoke) {
           await window.webContents.executeJavaScript(`(async () => {
             const deadline = Date.now() + 10000;

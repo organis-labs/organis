@@ -62,8 +62,14 @@ new turn in a new ephemeral thread.
 If the verified provider requests a command, file change or additional permissions,
 the owner records `approval_requested` and enters `awaiting_approval` without
 releasing the workspace. A request record stores an Organis ID and method. The
-provider's request ID, requested command, paths and permission details stay
-in the active worker. The CLI can deny the request identified by that ID.
+provider's request ID stays in the active worker. While a request is pending,
+the owner's UI can show a bounded preview of commands, target paths, and the
+patch when Codex supplied it for the same item and turn. Desktop shows
+**Requested action**. Start the owning CLI with `--show-approval` to display
+the preview, which may contain sensitive text. The coordinator keeps previews
+in memory. Saved events and other processes do not receive that text. An
+incomplete preview cannot establish an exact action. The CLI can deny the
+request identified by the saved ID.
 
 The run state transition and `approval_denied` event commit together. The owner
 then sends the bound negative response. Command and file requests receive a

@@ -37,7 +37,8 @@ function questionUI(results) {
   });
   return {
     send: select('#send-codex'), cancel: select('#cancel-codex-turn'), status: select('#codex-turn-status'),
-    answer: select('#codex-answer'), cancellations,
+    answer: select('#codex-answer'), approval: select('#codex-approval'),
+    approvalDetails: select('#codex-approval-details'), cancellations,
     submit: () => select('#codex-question').handlers.submit({ preventDefault() {} }),
     async poll() {
       await new Promise(resolve => setImmediate(resolve));
@@ -77,6 +78,25 @@ test('Codex retains controls after a failed lookup and preserves cancellation er
   assert.equal(ui.status.textContent, 'Run cancelled.');
   assert.equal(ui.cancel.hidden, true);
   assert.equal(ui.send.disabled, false);
+});
+
+test('Codex shows the pending approval preview and clears it when the run ends', async () => {
+  const ui = questionUI([
+    { state: 'awaiting_approval', approval: { approvalId: 'pending', preview: {
+      kind: 'file-change', changes: [{ path: 'notes.txt', action: 'add', diff: '+proposal' }]
+    } } },
+    { state: 'cancelled' }
+  ]);
+  const ended = ui.submit();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(ui.approval.hidden, false);
+  assert.match(ui.approvalDetails.textContent, /notes\.txt/);
+  assert.match(ui.approvalDetails.textContent, /\+proposal/);
+
+  await ui.poll();
+  await ended;
+  assert.equal(ui.approval.hidden, true);
+  assert.equal(ui.approvalDetails.textContent, '');
 });
 
 test('Codex displays a completed answer after recovering from a lookup failure', async () => {

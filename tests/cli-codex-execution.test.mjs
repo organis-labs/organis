@@ -169,6 +169,35 @@ test('CLI waits for a durable denial and sends only a negative provider response
   }
 });
 
+test('the owning CLI displays a bound patch without saving private preview text', { timeout: 15000 }, async t => {
+  const { start, query } = await setup(t);
+  for (const scenario of ['approval-file', 'approval-file-mismatch']) {
+    const launched = start(scenario, ['--prompt', prompt, '--show-approval']);
+    const { run: accepted } = await launched.next();
+    const display = await launched.next();
+    assert.equal(display.type, 'approval-requested');
+    assert.equal(display.runId, accepted.id);
+    assert.equal(display.approval.method, 'item/fileChange/requestApproval');
+    const { approvalId, preview } = display.approval;
+    assert.equal(preview.kind, 'file-change');
+    if (scenario === 'approval-file') {
+      assert.deepEqual(preview.changes, [{ path: 'notes.txt', action: 'add', diff: '+private-patch-marker' }]);
+      assert.equal(preview.incomplete, false);
+    } else {
+      assert.deepEqual(preview.changes, []);
+      assert.equal(preview.incomplete, true);
+    }
+    const historical = await query('run', 'events', accepted.id);
+    const persisted = historical.events.find(event => event.type === 'approval_requested');
+    assert.equal(persisted.approvalId, approvalId);
+    assert.equal(Object.hasOwn(persisted, 'preview'), false);
+    assert.doesNotMatch(JSON.stringify(historical), /private-patch-marker|private-command-marker/);
+    await query('run', 'deny', accepted.id, approvalId);
+    assert.equal((await launched.next()).run.state, 'completed');
+    assert.equal((await launched.closed)[0], 0);
+  }
+});
+
 test('cancelling a pending approval invalidates it and interrupts the turn', { timeout: 15000 }, async t => {
   const { start, query } = await setup(t);
   const launched = start('approval');

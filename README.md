@@ -104,6 +104,16 @@ keep independent Codex profiles. On Windows, use the native `codex.exe`.
 If Codex is missing from the desktop app's PATH, choose the executable explicitly.
 See the [read-only preview](docs/specs/codex-read-only.md) for scope and setup.
 
+Use `organis agent claude terminal` or **Connect Claude → Show terminal commands**
+to set up the CLI or desktop Claude Code profile. Run the printed commands in
+PowerShell on Windows or Terminal on macOS. Sign in through Claude Code's
+official browser flow, then run the sample question with tools disabled.
+The answer appears in your terminal. The CLI and desktop keep separate
+`CLAUDE_CONFIG_DIR` profiles under `~/.organis/claude`. After signing in, use
+`organis agent claude check --json` or **Check connection** to verify the
+corresponding profile. Use Claude Code 2.1.268 or newer for profile verification
+and a build that supports `--safe-mode` for the sample commands.
+
 ### Project permissions preview
 
 The desktop **Project permissions** panel and the CLI share a local registry.

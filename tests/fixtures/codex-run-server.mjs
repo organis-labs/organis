@@ -14,8 +14,14 @@ if (operation === '--version') {
   let openedThread = false;
   function requestApproval() {
     const permission = scenario === 'approval-permissions';
+    const file = scenario.startsWith('approval-file');
+    if (file) notify('item/fileChange/patchUpdated', {
+      threadId, turnId, itemId: scenario === 'approval-file' ? 'mock-item' : 'other-item',
+      changes: [{ path: 'notes.txt', kind: { type: 'add' }, diff: '+private-patch-marker' }]
+    });
     send({
-      id: 'approve', method: permission ? 'item/permissions/requestApproval' : 'item/commandExecution/requestApproval',
+      id: 'approve', method: permission ? 'item/permissions/requestApproval' :
+        file ? 'item/fileChange/requestApproval' : 'item/commandExecution/requestApproval',
       params: { threadId, turnId, itemId: 'mock-item', startedAtMs: 1, command: 'private-command-marker',
         ...(permission ? { cwd: process.cwd(), permissions: { network: { enabled: true } } } : {}) }
     });
@@ -59,7 +65,7 @@ if (operation === '--version') {
         reply({ turn: { id: turnId, status: 'inProgress' } });
         if (scenario === 'option-like-prompt') done(params.input?.[0]?.text === '--help' ? 'completed' : 'failed');
         if (scenario === 'failure') done('failed');
-        if (['approval', 'approval-permissions', 'approval-delivery-failure'].includes(scenario)) requestApproval();
+        if (['approval', 'approval-permissions', 'approval-delivery-failure', 'approval-file', 'approval-file-mismatch'].includes(scenario)) requestApproval();
         if (scenario === 'approval-ended') done('completed');
         if (scenario === 'unsafe') notify('item/started', { threadId, turnId, item: { type: 'commandExecution' } });
         if (scenario === 'unexpected-request') setTimeout(() => send({

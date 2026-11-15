@@ -23,6 +23,22 @@ Sign in with organis agent codex login if needed, then repeat the check.
 On Windows, select the native codex.exe instead of a .cmd or .bat wrapper.
 Exit codes: 0 passed, 1 failed, 2 invalid arguments, 130 interrupted.`;
 
+const claudeHelp = `Use your installed Claude Code with the separate Organis CLI profile.
+
+Usage:
+  organis agent claude check [--executable <absolute-path>] [--json]
+  organis agent claude terminal [--executable <absolute-path>] [--json]
+
+Options:
+  --executable <absolute-path>  Select Claude Code explicitly instead of searching PATH.
+  --json                        Print one diagnostic JSON record on stdout.
+  -h, --help                    Show this help.
+
+The terminal command prints native Claude Code sign-in and tool-free first
+answer commands. Run them yourself in a terminal, then repeat the check.
+On Windows, select the native Claude Code .exe instead of a .cmd or .bat wrapper.
+Exit codes: 0 passed, 1 failed, 2 invalid arguments, 130 interrupted.`;
+
 const sections = {
   '': `Organis ${version}
 
@@ -32,7 +48,7 @@ Usage:
 
 Commands:
   status   Show the Organis version, platform and available features.
-  agent    Sign in to Codex or check the Organis CLI connection.
+  agent    Sign in to Codex or check a Codex or Claude Code connection.
   project  Manage locally saved projects and requested path access.
   run      Run a read-only Codex task or fixture and inspect saved runs.
   update   Check for or install a CLI update.
@@ -45,10 +61,14 @@ Get started:
   organis status
   organis agent codex check --help
   organis agent codex check --json
+  organis agent claude check --json
 
 Codex connection checks support ${testedCodexVersions.join(', ')}.
 Read-only Codex preview: organis run codex --help.`,
-  agent: codexHelp,
+  agent: `${codexHelp}\n\nClaude Code connection check: organis agent claude check --help.`,
+  'agent claude': claudeHelp,
+  'agent claude check': claudeHelp,
+  'agent claude terminal': claudeHelp,
   'agent codex': codexHelp,
   'agent codex check': codexHelp,
   'agent codex login': `Sign in to Codex for Organis CLI using your ChatGPT account.
@@ -113,7 +133,7 @@ not confirm it. Inspect the run with organis run show <run-id>.`,
 
 Usage:
   organis run codex <project-id> --prompt <text> [--executable <absolute-path>]
-      [--state-dir <directory>] [--command-id <uuid>] [--json]
+      [--state-dir <directory>] [--command-id <uuid>] [--show-approval] [--json]
 
 Uses signed-in Codex CLI ${testedCodexVersions.join(', ')} and a read-only,
 ephemeral turn with a 120-second limit. Shell commands and approval grants
@@ -124,6 +144,8 @@ Use a compatible Codex configuration without MCP server definitions.
 Use synthetic or otherwise shareable text. The prompt is sent to Codex and
 the final reply is saved locally in run events. Press Ctrl+C or use
 organis run cancel <run-id> in another terminal to request cancellation.
+Use --show-approval to display pending request details in the owning process.
+This can print sensitive command or patch text. Organis does not save these details.
 
 Exit codes: 0 completed, 1 failed or interrupted, 2 invalid arguments, 130 cancelled.`,
   'run deny': `Deny a pending Codex request by its approval ID.

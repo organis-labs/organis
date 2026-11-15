@@ -148,6 +148,7 @@ if (!smokeResult.includes('ORGANIS_DESKTOP_SMOKE_OK')) throw new Error('Desktop 
 if (!smokeResult.includes('ORGANIS_DESKTOP_PROJECT_REGISTRY_SMOKE_OK')) throw new Error('Desktop project registry smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_EXECUTION_SMOKE_OK')) throw new Error('Desktop execution smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_CODEX_CHECK_SMOKE_OK')) throw new Error('Desktop Codex connection smoke marker missing');
+if (!smokeResult.includes('ORGANIS_DESKTOP_CLAUDE_CHECK_SMOKE_OK')) throw new Error('Desktop Claude connection smoke marker missing');
 if (!smokeResult.includes('ORGANIS_DESKTOP_FEED_IMPORT_SMOKE_OK')) throw new Error('Desktop release feed import smoke marker missing');
 const unavailableSmokeResult = run(platform === 'linux' ? 'xvfb-run' : executable,
   platform === 'linux' ? ['-a', executable, '--ozone-platform=x11', '--smoke-runtime-unavailable'] : ['--smoke-runtime-unavailable'],
@@ -157,7 +158,10 @@ if (!unavailableSmokeResult.includes('ORGANIS_DESKTOP_UNAVAILABLE_SMOKE_OK')) th
 if (verificationOnly) {
   const evidence = { schemaVersion: 1, kind: 'development-package-verification', sourceSha, sourceDirty,
     app, version: meta.version, target, node: process.versions.node, electron: meta.devDependencies.electron,
-    cli: cliExecution ?? null, desktop: includeDesktop ? { rendererIsolation: true, fixtureCompletion: true, fixtureCancellation: true, runtimeUnavailableUI: true, codexConnectionDiagnostic: true } : null,
+    cli: cliExecution ?? null, desktop: includeDesktop ? {
+      rendererIsolation: true, fixtureCompletion: true, fixtureCancellation: true, runtimeUnavailableUI: true,
+      codexConnectionDiagnostic: true, claudeConnectionDiagnostic: true
+    } : null,
     releaseSigningVerified: false, installerVerified: false };
   await writeFile(join(output, 'verification.json'), JSON.stringify(evidence, null, 2) + '\n');
   console.log(JSON.stringify(evidence, null, 2));

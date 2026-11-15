@@ -45,7 +45,8 @@ exports.createExecutionController = async ({ app, trustedSender, getWindow, stat
       const run = runtime.getRun(id);
       if (run.mode !== 'codex-read-only') throw new Error('Select a Codex run.');
       const answer = run.state === 'completed' ? runtime.events(id).find(event => event.type === 'codex_answer')?.text : undefined;
-      return { state: run.state, answer, errorCode: run.errorCode, ownershipRetained: run.ownershipRetained };
+      const approval = run.state === 'awaiting_approval' ? runtime.pendingApproval(id) : null;
+      return { state: run.state, answer, approval, errorCode: run.errorCode, ownershipRetained: run.ownershipRetained };
     },
     events: id => runtime.events(id),
     cancel: async options => {

@@ -24,6 +24,19 @@ contextBridge.exposeInMainWorld('organisExecution', Object.freeze({
   reconcile: () => ipcRenderer.invoke('execution:reconcile')
 }));
 
+contextBridge.exposeInMainWorld('organisCollaboration', Object.freeze({
+  prepare: input => ipcRenderer.invoke('collaboration:prepare', input),
+  status: () => ipcRenderer.invoke('collaboration:status'),
+  plan: (id, attempt) => ipcRenderer.invoke('collaboration:plan', id, attempt),
+  propose: (id, attempt) => ipcRenderer.invoke('collaboration:propose', id, attempt),
+  apply: (id, attempt) => ipcRenderer.invoke('collaboration:apply', id, attempt),
+  review: (id, attempt) => ipcRenderer.invoke('collaboration:review', id, attempt),
+  revise: (id, attempt) => ipcRenderer.invoke('collaboration:revise', id, attempt),
+  cancel: (id, attempt) => ipcRenderer.invoke('collaboration:cancel', id, attempt),
+  recordTest: input => ipcRenderer.invoke('collaboration:recordTest', input),
+  dismiss: (id, attempt) => ipcRenderer.invoke('collaboration:dismiss', id, attempt)
+}));
+
 contextBridge.exposeInMainWorld('organisUpdates', Object.freeze({
   status: () => ipcRenderer.invoke('updates:status'),
   check: () => ipcRenderer.invoke('updates:check'),

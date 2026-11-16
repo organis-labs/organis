@@ -1,0 +1,108 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { setImmediate } from 'node:timers/promises';
+import test from 'node:test';
+import vm from 'node:vm';
+
+const script = readFileSync(new URL('../apps/desktop/collaboration.js', import.meta.url), 'utf8');
+
+function renderer(api) {
+  const nodes = new Map();
+  const get = id => {
+    if (!nodes.has(id)) {
+      const events = new Map();
+      nodes.set(id, {
+        value: '', dataset: {}, textContent: '', reset() {}, scrollIntoView() {},
+        addEventListener(type, callback) { events.set(type, callback); },
+        event(type, event) { return events.get(type)(event); }
+      });
+    }
+    return nodes.get(id);
+  };
+  const click = async id => {
+    const element = get(id);
+    assert.ok(!element.hidden && !element.disabled, `${id} can be clicked`);
+    await element.event('click');
+    await setImmediate();
+  };
+  vm.runInNewContext(script, {
+    window: { organisCollaboration: api },
+    document: { querySelector: get },
+    crypto: { randomUUID: () => 'command-id' },
+    setInterval() {}
+  });
+  return { get, click };
+}
+
+test('collaboration exposes each handoff before sending and separates application, review and test evidence', async () => {
+  const base = { id: 'task', attempt: 1, revisionLimit: 1, target: 'fixtures/notes.txt',
+    original: 'Before', request: 'Replace Before with After' };
+  const actions = [];
+  let task;
+  const stage = (name, phase, fields = {}) => async (...args) => {
+    actions.push([name, ...args]);
+    task = { ...base, ...task, ...fields, phase };
+    return task;
+  };
+  const ui = renderer({
+    status: async () => task ?? null,
+    prepare: stage('prepare', 'ready-to-plan'),
+    plan: stage('plan', 'ready-to-propose', {
+      plan: { summary: 'Change the label', instructions: 'Set the text to After', criteria: ['Keep one line'] }
+    }),
+    propose: stage('propose', 'awaiting-approval', {
+      proposal: { original: 'Before', replacement: 'After' }
+    }),
+    apply: stage('apply', 'ready-to-review', { applied: true, revision: 'sha256:result' }),
+    review: stage('review', 'completed', { review: { verdict: 'passed', summary: 'Matches the plan' } })
+  });
+  await setImmediate();
+  ui.get('#saved-project').value = 'project';
+  ui.get('#codex-prompt').value = base.request;
+
+  await ui.click('#prepare-collaboration');
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0][1].commandId, 'command-id');
+  assert.equal(ui.get('#collaboration-request').textContent, base.request);
+  assert.equal(ui.get('#chat-submit').inert, true);
+  assert.equal(ui.get('#collaboration-propose').hidden, true);
+
+  await ui.click('#collaboration-plan');
+  assert.equal(ui.get('#collaboration-instructions').textContent, 'Set the text to After');
+  assert.equal(ui.get('#collaboration-current').textContent, 'Before');
+  await ui.click('#collaboration-propose');
+  assert.equal(ui.get('#collaboration-replacement').textContent, 'After');
+  assert.equal(ui.get('#collaboration-applied').hidden, true);
+  assert.equal(ui.get('#collaboration-review').hidden, true);
+
+  await ui.click('#collaboration-apply');
+  assert.equal(ui.get('#collaboration-applied').hidden, false);
+  assert.equal(ui.get('#collaboration-review-view').hidden, true);
+  assert.match(ui.get('#collaboration-test-status').textContent, /No test execution recorded/);
+  await ui.click('#collaboration-review');
+  assert.equal(ui.get('#collaboration-verdict').textContent, 'Claude review passed');
+  assert.match(ui.get('#collaboration-test-status').textContent, /No test execution recorded/);
+  assert.deepEqual(actions.slice(1), [
+    ['plan', 'task', 1], ['propose', 'task', 1], ['apply', 'task', 1], ['review', 'task', 1]
+  ]);
+  assert.equal(ui.get('#codex-prompt').value, base.request);
+});
+
+test('cancel remains available during planning and a late plan cannot replace the cancelled task', async () => {
+  const initial = { id: 'task', attempt: 1, revisionLimit: 1, phase: 'ready-to-plan' };
+  const inFlight = Promise.withResolvers();
+  let task = initial;
+  const ui = renderer({
+    status: async () => task,
+    plan: () => inFlight.promise,
+    cancel: async () => (task = { ...initial, phase: 'cancelled' })
+  });
+  await setImmediate();
+  await ui.click('#collaboration-plan');
+  await ui.click('#collaboration-cancel');
+  inFlight.resolve({ ...initial, phase: 'ready-to-propose' });
+  await setImmediate();
+  assert.equal(ui.get('#collaboration').dataset.phase, 'cancelled');
+  assert.equal(ui.get('#collaboration-propose').hidden, true);
+  assert.equal(ui.get('#collaboration-dismiss').hidden, false);
+});

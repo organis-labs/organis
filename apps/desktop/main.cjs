@@ -22,6 +22,12 @@ if (smoke) {
   mkdirSync(path.join(smokeRoot, 'workspace'));
   if (unavailableSmoke) writeFileSync(path.join(smokeRoot, 'state'), 'Deliberately invalid state directory for smoke test');
 }
+if (!smoke && !app.requestSingleInstanceLock()) app.exit(0);
+app.on('second-instance', () => {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+});
 async function finishSmoke(code) {
   clearTimeout(smokeTimer);
   try { await agents?.close(); await execution?.close(); }
@@ -47,9 +53,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs') }
   });
   mainWindow = window;
-  window.on('closed', () => execution?.discardFileChange());
+  window.on('closed', () => execution?.cancelWindowActions());
   window.webContents.on('did-start-navigation', ({ isSameDocument, isMainFrame }) => {
-    if (isMainFrame && !isSameDocument) execution?.discardFileChange();
+    if (isMainFrame && !isSameDocument && window.webContents.getURL() === documentURL) execution?.cancelWindowActions();
   });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
@@ -213,7 +219,8 @@ app.whenReady().then(async () => {
     app, trustedSender, getWindow: () => mainWindow,
     stateDir: smoke ? path.join(smokeRoot, 'state') : undefined,
     smokeWorkspace: smoke ? path.join(smokeRoot, 'workspace') : undefined,
-    getCodexExecutable: agents.getExecutable
+    getCodexExecutable: agents.getExecutable,
+    getClaudeExecutable: agents.getClaudeExecutable
   });
   registerProjectHandlers({
     app, trustedSender, getWindow: () => mainWindow,

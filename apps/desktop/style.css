@@ -6,10 +6,10 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; }
-button, select, textarea { font: inherit; }
+button, input, select, textarea { font: inherit; }
 button { font-size: 13px; background: var(--ink); color: var(--paper); border: 0; border-radius: 8px; padding: 9px 13px; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
-button:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .secondary { color: var(--ink); background: var(--soft); }
 select { max-width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 7px 8px; color: var(--ink); background: var(--card); }
 textarea { color: var(--ink); }
@@ -31,6 +31,27 @@ textarea { color: var(--ink); }
 #codex-approval summary { cursor: pointer; font-weight: 600; }
 #codex-change-review { border: 1px solid var(--border); background: var(--card); padding: 14px; border-radius: 10px; }
 #codex-change-review h3, #codex-change-review h4 { margin: 8px 0; }
+
+#collaboration { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+#collaboration h3, #collaboration h4, #collaboration h5 { margin: 0 0 6px; }
+#collaboration h3 { font-size: 18px; letter-spacing: -.025em; }
+#collaboration p, #collaboration details { margin: 4px 0; font-size: 13px; line-height: 1.5; }
+#collaboration p:empty { display: none; }
+#collaboration summary { width: fit-content; cursor: pointer; }
+#collaboration pre { margin: 6px 0 0; padding: 10px; max-height: 250px; overflow: auto; font-size: 12px; line-height: 1.5; white-space: pre-wrap; background: var(--soft); border-radius: 8px; }
+#collaboration section { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+#collaboration-error { color: #983628; }
+#collaboration-target, #collaboration-applied { font-weight: 600; }
+#collaboration-history { padding-top: 8px; }
+.collaboration-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.collaboration-header p { color: var(--muted); }
+.collaboration-versions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 10px; }
+.collaboration-versions > * { min-width: 0; }
+.collaboration-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+#collaboration-test-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); align-items: start; gap: 8px; margin-top: 8px; }
+#collaboration-test-form label { display: grid; gap: 3px; font-size: 12px; }
+#collaboration-test-form input, #collaboration-test-form textarea { width: 100%; background: var(--card); color: var(--ink); border: 1px solid var(--border); border-radius: 7px; padding: 6px 8px; }
+#collaboration-record-test { grid-column: 1 / -1; justify-self: start; }
 
 .composer { width: min(760px, calc(100% - 32px)); margin: 0 auto 18px; padding: 12px; border: 1px solid var(--border); border-radius: 13px; background: var(--card); }
 .composer-label, .composer-toolbar { display: flex; align-items: center; gap: 8px; }

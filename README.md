@@ -4,8 +4,9 @@ Desktop and CLI foundation for a general-purpose agent workspace. Both clients
 run a bundled deterministic fixture through a shared local execution runtime,
 with saved state, ordered events, command deduplication and cancellation.
 Codex connection checks are available in both clients. The CLI also offers a
-bounded read-only Codex execution preview for registered projects. Provider
-integrations, synchronization and interactive approvals remain planned.
+bounded read-only Codex execution preview for registered projects. Desktop can
+run a [local Claude and Codex collaboration](docs/specs/local-collaboration.md)
+with explicit approval to apply one file. Synchronization remains planned.
 See the [execution contract](docs/local-execution.md)
 for ownership, recovery and scope limitations.
 

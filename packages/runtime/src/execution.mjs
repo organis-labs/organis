@@ -190,7 +190,7 @@ export class LocalRuntime {
     return this.#enqueue(target, { kind: 'startFixture', commandId, mode, durationMs, scope, roomId, participantId, payloadHash });
   }
 
-  async startCodex({ projectId, prompt, executable, commandId, profile, fileChangeWorkspaceId } = {}) {
+  async startCodex({ projectId, prompt, executable, commandId, profile, fileChangeWorkspaceId, roomId, participantId } = {}) {
     if (this.#closing || this.#closed) throw new RuntimeError('RUNTIME_CLOSED', 'The runtime is closed.');
     if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > 16384) {
       throw new RuntimeError('INVALID_ARGUMENT', 'The Codex prompt must contain 1 to 16384 UTF-8 bytes.');
@@ -210,18 +210,27 @@ export class LocalRuntime {
       throw new RuntimeError('SCOPE_DENIED', 'The project changed. Select the file again.');
     }
     const payloadHash = hash({ kind: 'startCodex', projectId, fileId: target.fileId, prompt, executable: executable ?? null, profile,
-      ...(fileChange ? { fileChange } : {}) });
-    return this.#enqueue(target, { kind: 'startCodex', commandId, mode: CODEX_MODE, durationMs: CODEX_DURATION_MS, scope: 'read-only',
+      ...(fileChange ? { fileChange } : {}), ...(roomId ? { roomId, participantId } : {}) });
+    return this.#enqueue(target, { kind: 'startCodex', commandId, roomId, participantId, mode: CODEX_MODE, durationMs: CODEX_DURATION_MS, scope: 'read-only',
       payloadHash, codex: { projectId, executable, prompt, profile, fileId: target.fileId, fileChange } });
   }
 
-  async startCodexFileChange({ projectId, target, instructions, executable, signal }) {
-    const { canonical, fileId } = await this.#codexWorkspace(projectId);
+  async inspectCodexFileChangeTarget(projectId, target) {
+    const workspace = await this.#codexWorkspace(projectId);
+    return { workspace, file: inspectFile(workspace.canonical, target) };
+  }
+
+  async startCodexFileChange({ projectId, target, instructions, executable, signal, expected, commandId, roomId, participantId }) {
+    const { workspace: { canonical, fileId }, file } = await this.inspectCodexFileChangeTarget(projectId, target);
     signal.throwIfAborted();
-    const file = inspectFile(canonical, target);
-    const { run } = await this.startCodex({
-      projectId, prompt: fileChangePrompt(instructions, file), executable, profile: 'desktop', fileChangeWorkspaceId: fileId
+    if (expected && (expected.workspace.fileId !== fileId || expected.file.identity !== file.identity || expected.file.text !== file.text)) {
+      throw new RuntimeError('SCOPE_DENIED', 'The selected file changed. Start a new collaboration with the current file.');
+    }
+    const { run, duplicate } = await this.startCodex({
+      projectId, prompt: fileChangePrompt(instructions, file), executable, profile: 'desktop', fileChangeWorkspaceId: fileId,
+      commandId, roomId, participantId
     });
+    if (duplicate) throw new RuntimeError('COMMAND_CONFLICT', 'A file change was already requested for this attempt.');
     this.#fileChanges.set(run.id, { projectId, file, workspace: canonical, workspaceId: fileId });
     return run;
   }

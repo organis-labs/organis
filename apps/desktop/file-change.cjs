@@ -29,7 +29,8 @@ exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExec
 
   return {
     discard,
-    async start({ projectId, instructions } = {}) {
+    isPending: () => Boolean(pending),
+    async start({ projectId, instructions } = {}, selection) {
       if (pending) throw new Error('Finish or cancel the current file change first.');
       if (typeof projectId !== 'string' || typeof instructions !== 'string' || !instructions.trim()) {
         throw new Error('Select a registered project and describe the change.');
@@ -38,19 +39,29 @@ exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExec
       const { signal } = change.abort;
       pending = change;
       try {
-        const picked = await dialog.showOpenDialog(getWindow(), {
+        const picked = selection ? { filePaths: [selection.target] } : await dialog.showOpenDialog(getWindow(), {
           title: 'Select one existing text file in the project root',
           properties: ['openFile']
         });
         if (picked.canceled || signal.aborted) return null;
         change.launch = runtime.startCodexFileChange({
-          projectId, target: picked.filePaths[0], instructions, executable: getCodexExecutable(), signal
+          projectId, target: picked.filePaths[0], instructions, executable: getCodexExecutable(), signal,
+          expected: selection?.expected, commandId: selection?.commandId, roomId: selection?.roomId,
+          participantId: selection?.participantId
         });
         const run = await change.launch;
         change.runId = run.id;
+        try { selection?.onRun?.(run.id); }
+        catch (error) {
+          await discard();
+          throw error;
+        }
         if (signal.aborted) return null;
-        await runtime.wait(run.id);
+        const result = await runtime.wait(run.id);
         if (signal.aborted) return null;
+        if (result?.ownershipRetained) {
+          throw Object.assign(new Error('Codex termination is unverified and the workspace remains busy.'), { code: 'TERMINATION_UNVERIFIED' });
+        }
         change.preview = { id: change.id, ...runtime.previewCodexFileChange(run.id) };
         return change.preview;
       } catch (error) {
@@ -63,7 +74,7 @@ exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExec
         }
       }
     },
-    async approve(id) {
+    async approve(id, beforeApply) {
       const change = pending;
       if (!change?.preview || change.confirming || change.cancellation || change.id !== id) throw new Error('This proposal is no longer available.');
       change.confirming = true;
@@ -75,6 +86,7 @@ exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExec
           signal
         });
         if (confirmation.response !== 1 || signal.aborted) return false;
+        beforeApply?.();
         await runtime.applyCodexFileChange(change.runId, { signal });
         return true;
       } catch (error) {

@@ -111,6 +111,29 @@ test('Codex displays a completed answer after recovering from a lookup failure',
   assert.equal(ui.answer.hidden, false);
 });
 
+test('a file proposal replaces the previous question answer and status', async () => {
+  const ui = questionUI([{ state: 'completed', answer: '42' }], {
+    startFileChange: async () => ({
+      id: 'proposal-id', target: 'notes.txt', original: 'old text', replacement: 'new text'
+    })
+  });
+  const prompt = ui.select('#codex-prompt');
+  prompt.value = 'Question A';
+  await ui.submit();
+  assert.equal(ui.select('#chat-request').textContent, 'Question A');
+  assert.equal(ui.answer.hidden, false);
+  assert.equal(ui.answer.textContent, '42');
+  assert.equal(ui.status.textContent, 'Answer received.');
+
+  prompt.value = 'File change B';
+  await ui.select('#propose-codex-change').handlers.click();
+  assert.equal(ui.select('#chat-request').textContent, 'File change B');
+  assert.equal(ui.select('#codex-change-review').hidden, false);
+  assert.equal(ui.answer.hidden, true);
+  assert.equal(ui.answer.textContent, '');
+  assert.equal(ui.status.textContent, '');
+});
+
 test('desktop shows the replacement for review and sends only the proposal ID on approval', async () => {
   const originals = [];
   const reviews = [];

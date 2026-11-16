@@ -172,6 +172,9 @@ proposeChange.addEventListener('click', async () => {
     const proposal = await window.organisExecution.startFileChange({ projectId, instructions });
     if (activeChange !== operation || operation.discarding) return;
     if (!proposal) { finishFileChange(operation, 'File change cancelled.'); return; }
+    answerView.hidden = true;
+    answerView.textContent = '';
+    questionStatus.textContent = '';
     showChatRequest(instructions);
     operation.id = proposal.id;
     changePath.textContent = proposal.target;

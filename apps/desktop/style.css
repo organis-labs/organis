@@ -1,42 +1,74 @@
-:root { color-scheme: light; font-family: system-ui, sans-serif; color: #303330; background: #faf4ea; }
+:root {
+  color-scheme: light; font-family: system-ui, sans-serif; color: #303330; background: #faf4ea;
+  --ink: #303330; --muted: #62685f; --paper: #faf4ea; --card: #fffdf8;
+  --border: #dcded4; --soft: #e7e9df; --focus: #42ac6b;
+}
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
-main { width: min(680px, 100%); padding: 56px 40px; }
-.mark { font-size: 64px; color: #303330; line-height: 1; }
-.eyebrow { margin-top: 32px; font-size: 11px; letter-spacing: .18em; color: #636b61; }
-h1 { font-size: clamp(48px, 8vw, 72px); letter-spacing: -.06em; margin: 8px 0; font-weight: 650; }
-.intro { font-size: 24px; margin: 0 0 44px; color: #62685f; }
-section { display: flex; gap: 16px; border-top: 1px solid #dcded4; padding-top: 28px; }
-.dot { flex: 0 0 10px; height: 10px; border-radius: 50%; background: #5bdd91; margin-top: 6px; }
-h2 { font-size: 16px; margin: 0 0 8px; }
-section p { font-size: 14px; line-height: 1.7; color: #62685f; margin: 0; }
-footer { margin-top: 48px; color: #7d8478; font-size: 12px; }
-.updates { margin-top: 28px; }
-.update-actions { display: flex; gap: 12px; margin-top: 16px; }
-button { font: inherit; font-size: 13px; background: #303330; color: #faf4ea; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+[hidden] { display: none !important; }
+body { margin: 0; }
+button, select, textarea { font: inherit; }
+button { font-size: 13px; background: var(--ink); color: var(--paper); border: 0; border-radius: 8px; padding: 9px 13px; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
-button:focus-visible { outline: 3px solid #42ac6b; outline-offset: 3px; }
-.execution { margin-top: 28px; }
-.execution > div { width: 100%; min-width: 0; }
-.execution .update-actions { flex-wrap: wrap; align-items: center; }
-.execution label { display: grid; gap: 4px; font-size: 12px; }
-select { font: inherit; padding: 8px; max-width: 100%; }
-#workspace-path { overflow-wrap: anywhere; margin: 12px 0; }
-#execution-status { margin-bottom: 12px; }
-#runs { padding: 0; list-style: none; max-height: 260px; overflow: auto; }
-#runs li { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
-.run-link { background: #e7e9df; color: #303330; text-align: left; flex: 1; }
-#run-events { max-height: 260px; overflow: auto; font-size: 12px; }
-.execution-note { margin-top: 16px; }
+button:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.secondary { color: var(--ink); background: var(--soft); }
+select { max-width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 7px 8px; color: var(--ink); background: var(--card); }
+textarea { color: var(--ink); }
 
+.chat-shell { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.chat-header { min-width: 0; min-height: 62px; display: flex; align-items: center; gap: 18px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
+.chat-header h1 { margin: 0; font-size: 22px; white-space: nowrap; letter-spacing: -.045em; }
+.chat-brand { display: flex; align-items: center; gap: 6px; }
+.chat-brand span { font-size: 13px; color: #3b7045; }
+.chat-project { min-width: 0; margin-left: auto; max-width: min(52vw, 420px); display: grid; gap: 3px; font-size: 11px; color: var(--muted); }
+.chat-project select { min-width: 0; font-size: 13px; }
+.conversation { overflow: auto; scrollbar-gutter: stable; }
+.conversation-content { width: min(760px, 100%); margin: 0 auto; padding: 34px 24px 22px; overflow-wrap: anywhere; }
+.conversation h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.03em; }
+.chat-guide, .conversation [role="status"] { font-size: 14px; line-height: 1.55; color: var(--muted); }
+.chat-guide { margin: 0 0 20px; }
+#chat-request { margin: 16px 0 16px auto; width: fit-content; max-width: 85%; padding: 9px 12px; border-radius: 10px; background: var(--soft); white-space: pre-wrap; font-size: 14px; }
+.conversation [role="status"]:empty { display: none; }
+#codex-approval summary { cursor: pointer; font-weight: 600; }
+#codex-change-review { border: 1px solid var(--border); background: var(--card); padding: 14px; border-radius: 10px; }
+#codex-change-review h3, #codex-change-review h4 { margin: 8px 0; }
+
+.composer { width: min(760px, calc(100% - 32px)); margin: 0 auto 18px; padding: 12px; border: 1px solid var(--border); border-radius: 13px; background: var(--card); }
+.composer-label, .composer-toolbar { display: flex; align-items: center; gap: 8px; }
+.composer-label { justify-content: space-between; }
+.composer-label button { padding: 5px 8px; font-size: 11px; }
+.composer-toolbar { align-items: end; flex-wrap: wrap; }
+.composer label { font-size: 12px; font-weight: 600; }
+.composer-toolbar label { display: grid; gap: 3px; }
+.composer-toolbar select { font-size: 13px; }
+#codex-prompt { display: block; width: 100%; min-height: 64px; max-height: 22vh; resize: vertical; margin: 8px 0; padding: 9px; background: transparent; border: 1px solid var(--border); border-radius: 8px; }
+.composer-actions { margin-left: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.composer-actions fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.composer-status { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.markdown-preview { max-height: min(140px, 17vh); overflow: auto; overflow-wrap: anywhere; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+.markdown-preview :first-child { margin-top: 0; }
+.markdown-preview :last-child { margin-bottom: 0; }
+.markdown-preview pre, #codex-answer, #codex-approval-details, #codex-change-review pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--soft); padding: 10px; border-radius: 8px; }
+#codex-answer { font: inherit; }
+#codex-approval-details { max-height: 280px; overflow: auto; }
+
+#settings { width: min(680px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 18px 22px; overflow: auto; color: var(--ink); background: var(--paper); border: 1px solid var(--border); border-radius: 14px; }
+#settings::backdrop { background: #30333055; }
+.settings-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#settings h2 { font-size: 16px; margin: 0 0 8px; }
+#settings section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+#settings section p { margin: 6px 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+#settings label { display: grid; gap: 4px; font-size: 12px; }
 #projects label[hidden] { display: none; }
-#project-picked-path, #project-details li { overflow-wrap: anywhere; }
-#codex-question { margin-top: 24px; }
-#codex-question label { margin: 12px 0 4px; }
-#codex-prompt { width: 100%; resize: vertical; padding: 8px; font: inherit; }
-#codex-turn-status { margin-top: 12px; }
-#codex-answer, #codex-approval-details { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: #e7e9df; padding: 12px; border-radius: 8px; }
-#codex-change-review pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #e7e9df; padding: 12px; border-radius: 8px; }
-#codex-change-path { overflow-wrap: anywhere; }
-#codex-approval-details { font-family: monospace; max-height: 300px; overflow: auto; }
-#claude-path { overflow-wrap: anywhere; }
+#settings textarea { max-width: 100%; }
+#settings pre, #project-picked-path, #project-details li, #claude-path, #workspace-path, #codex-path { overflow-wrap: anywhere; }
+.update-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+#runs { padding: 0; list-style: none; max-height: 240px; overflow: auto; }
+#runs li { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.run-link { background: var(--soft); color: var(--ink); text-align: left; flex: 1; }
+#run-events { max-height: 240px; overflow: auto; font-size: 12px; }
+@media (max-width: 680px) {
+  .chat-header { gap: 9px; padding: 8px 12px; }
+  .chat-header h1 { font-size: 18px; }
+  .conversation-content { padding: 22px 16px; }
+  .composer { width: calc(100% - 16px); margin-bottom: 8px; padding: 8px; }
+}

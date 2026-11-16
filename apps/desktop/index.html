@@ -11,17 +11,77 @@
   <script src="agents.js" defer></script>
   <script src="claude-agents.js" defer></script>
   <script src="projects.js" defer></script>
+  <script src="composer.js" defer></script>
 </head>
 <body>
-  <main>
-    <div class="mark" aria-hidden="true">●</div>
-    <p class="eyebrow">YOUR TOOLS. YOUR WORKSPACE.</p>
-    <h1>Organis</h1>
-    <p class="intro">A home for your agents.</p>
-    <section aria-label="Development status">
-      <span class="dot" aria-hidden="true"></span>
-      <div><h2>Local execution foundation</h2><p>Run a deterministic test task and inspect its saved progress. You can also connect Codex and send a read-only question.</p></div>
-    </section>
+  <main class="chat-shell">
+    <header class="chat-header">
+      <div class="chat-brand"><span aria-hidden="true">●</span><h1>Organis</h1></div>
+      <label class="chat-project">Project <select id="saved-project"></select></label>
+      <button type="button" id="open-settings" class="secondary">Settings</button>
+    </header>
+    <div class="conversation" aria-label="Conversation">
+      <div class="conversation-content">
+        <h2>Local chat</h2>
+        <p class="chat-guide" id="chat-guide">Select a project to ask Codex a question or propose a file change.</p>
+        <p id="chat-request" aria-label="Your message" hidden></p>
+        <p id="codex-turn-status" role="status"></p>
+        <details id="codex-approval" hidden>
+          <summary>Requested action</summary>
+          <p>You can cancel this read-only run.</p>
+          <pre id="codex-approval-details"></pre>
+        </details>
+        <pre id="codex-answer" aria-label="Codex answer" hidden></pre>
+        <p id="codex-change-status" role="status"></p>
+        <section id="codex-change-review" aria-label="Review file change" hidden>
+          <h3 id="codex-change-path"></h3>
+          <h4>Original</h4>
+          <pre id="codex-change-original"></pre>
+          <h4>Proposed replacement</h4>
+          <pre id="codex-change-replacement"></pre>
+          <button id="approve-codex-change" type="button">Review and apply</button>
+        </section>
+      </div>
+    </div>
+    <form id="codex-question" class="composer" aria-label="Message composer">
+      <div class="composer-label">
+        <label for="codex-prompt">Message</label>
+        <button id="markdown-preview-toggle" type="button" class="secondary" aria-expanded="false" aria-controls="markdown-preview">Markdown preview</button>
+      </div>
+      <textarea id="codex-prompt" rows="3" placeholder="Ask a question or describe one file change…" required></textarea>
+      <div id="markdown-preview" class="markdown-preview" aria-label="Markdown preview" hidden></div>
+      <div class="composer-toolbar">
+        <label>Agent
+          <select id="chat-agent">
+            <option value="codex">Codex</option>
+            <option value="claude">Claude</option>
+            <option value="llm">LLM</option>
+          </select>
+        </label>
+        <label>Model <select id="chat-model" disabled><option>Adapter default</option></select></label>
+        <label>Permissions
+          <select id="chat-permission">
+            <option value="read">Read-only</option>
+            <option value="propose">Require file approval</option>
+          </select>
+        </label>
+        <div class="composer-actions">
+          <fieldset id="chat-submit" aria-label="Send message">
+            <button id="send-codex" type="submit">Send question</button>
+            <button id="propose-codex-change" type="button" hidden>Propose file change</button>
+          </fieldset>
+          <button id="cancel-codex-turn" type="button" class="secondary" hidden>Cancel question</button>
+          <button id="discard-codex-change" type="button" class="secondary" hidden>Cancel file change</button>
+        </div>
+      </div>
+      <p id="composer-status" class="composer-status" role="status"></p>
+    </form>
+  </main>
+  <dialog id="settings" aria-labelledby="settings-heading">
+    <header class="settings-header">
+      <h2 id="settings-heading">Settings</h2>
+      <button type="button" id="close-settings" class="secondary">Close</button>
+    </header>
     <section class="execution" aria-labelledby="codex-heading">
       <div>
         <h2 id="codex-heading">Connect Codex</h2>
@@ -61,7 +121,6 @@
         <h2 id="projects-heading">Project permissions</h2>
         <p>Register a project and its context paths. These are local preferences for future agent runs.</p>
         <div class="update-actions">
-          <label>Project <select id="saved-project"></select></label>
           <button id="pick-project" type="button">Choose project folder</button>
           <button id="refresh-projects" type="button">Refresh</button>
           <button id="remove-project" type="button" disabled>Remove project and paths</button>
@@ -77,34 +136,6 @@
         </div>
         <div id="project-details"></div>
         <p id="project-status" role="status">Loading project registry…</p>
-        <form id="codex-question">
-          <h3>Ask Codex</h3>
-          <p>Choose a trusted project above. Codex runs read-only. For a file proposal, Codex receives the selected file and the proposed text is saved in run history.</p>
-          <label for="codex-prompt">Message</label>
-          <textarea id="codex-prompt" rows="4" required></textarea>
-          <div class="update-actions">
-            <button id="send-codex" type="submit">Send read-only question</button>
-            <button id="propose-codex-change" type="button">Propose a file change</button>
-            <button id="cancel-codex-turn" type="button" hidden>Cancel question</button>
-            <button id="discard-codex-change" type="button" hidden>Cancel file change</button>
-          </div>
-          <p id="codex-turn-status" role="status"></p>
-          <details id="codex-approval" hidden>
-            <summary>Requested action</summary>
-            <p>Codex requested the action below. You can cancel this read-only run.</p>
-            <pre id="codex-approval-details"></pre>
-          </details>
-          <pre id="codex-answer" aria-label="Codex answer" hidden></pre>
-          <p id="codex-change-status" role="status"></p>
-          <section id="codex-change-review" aria-label="Review file change" hidden>
-            <h4 id="codex-change-path"></h4>
-            <h5>Original</h5>
-            <pre id="codex-change-original"></pre>
-            <h5>Proposed replacement</h5>
-            <pre id="codex-change-replacement"></pre>
-            <button id="approve-codex-change" type="button">Review and apply</button>
-          </section>
-        </form>
       </div>
     </section>
     <section class="execution" aria-labelledby="execution-heading">
@@ -135,7 +166,6 @@
         </div>
       </div>
     </section>
-    <footer>Desktop preview · No account required</footer>
-  </main>
+  </dialog>
 </body>
 </html>

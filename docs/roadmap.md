@@ -209,7 +209,9 @@ Agent, model, role, host and tool access remain separately represented. A team
 profile may prefill a room's participants and roles after explicit user selection;
 it does not grant permissions or start work by itself.
 
-Proposed minimal rules, to freeze in the routing/context spec before implementation:
+The [R08 room collaboration draft](specs/room-collaboration.md) specifies the first
+workflow, permission boundaries and acceptance cases for review before R09.
+Proposed minimal rules:
 - One lead participant per room handles unaddressed user requests. `@participant`
   targets that participant. Missing/ambiguous targets fail visibly; there is no
   automatic fan-out to every registered agent.
@@ -439,7 +441,7 @@ collaboration, then full desktop acceptance. Preserve existing work-item IDs.
 | R05 | Specify and implement desktop room/participant flow | Fresh-install M2.5 collaboration and matching runtime state |
 | R06 | Close release coverage gaps for a genuine next release | Per-OS desktop/CLI old-to-new evidence; native Linux scope recorded |
 | R07 | Decide licensing and publish contribution expectations | Maintainer-approved license and provenance checks |
-| R08 | Specify message routing, context sharing, approvals and revision bounds | Explicit target/lead/privacy rules and negative cases before room history is sent |
+| R08 | Review the [room collaboration draft](specs/room-collaboration.md) | Explicit target/lead/privacy rules, approval, cancellation and revision bounds before R09 |
 | R09 | Add second real participant and plan/code/review flow | M2.5 artifacts, actual test records, bounded revisions, failure/cancel acceptance |
 | R10 | Inventory private predecessor capabilities | Sanitized extraction matrix with provenance and unknowns; no bulk import or cutover |
 | R11 | Extract one reviewed reusable capability | Synthetic tests, fresh-machine acceptance and preserved original behavior |

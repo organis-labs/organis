@@ -29,7 +29,8 @@ childProcess.spawn = (file, args, options) => {
         || !args.includes('hooks') || !args.includes('multi_agent') || !args.includes('web_search="disabled"'))) {
       throw new Error('Missing fixture policy flags');
     }
-    if (options.env.CODEX_HOME !== path.join(process.platform === 'win32' ? process.env.USERPROFILE : process.env.HOME, '.organis', 'codex', 'cli')) {
+    const profile = scenario?.startsWith('desktop-') ? 'desktop' : 'cli';
+    if (options.env.CODEX_HOME !== path.join(process.platform === 'win32' ? process.env.USERPROFILE : process.env.HOME, '.organis', 'codex', profile)) {
       throw new Error('The Codex worker did not isolate its profile');
     }
     return originalSpawn(file, [server, scenario, args[0]], options);

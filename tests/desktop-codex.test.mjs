@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 const renderer = readFileSync(new URL('../apps/desktop/agents.js', import.meta.url), 'utf8');
 
-function questionUI(results) {
+function questionUI(results, fileChange = {}) {
   const elements = new Map();
   const timers = [];
   const cancellations = [];
@@ -21,6 +21,7 @@ function questionUI(results) {
   runInNewContext(renderer, {
     document: { querySelector: select },
     window: { organisExecution: {
+      ...fileChange,
       startCodex: async () => ({ id: 'run-1' }),
       codexResult: async () => {
         const result = results.shift();
@@ -36,6 +37,7 @@ function questionUI(results) {
     setTimeout: callback => timers.push(callback)
   });
   return {
+    select,
     send: select('#send-codex'), cancel: select('#cancel-codex-turn'), status: select('#codex-turn-status'),
     answer: select('#codex-answer'), approval: select('#codex-approval'),
     approvalDetails: select('#codex-approval-details'), cancellations,
@@ -107,4 +109,26 @@ test('Codex displays a completed answer after recovering from a lookup failure',
   assert.equal(ui.status.textContent, 'Answer received.');
   assert.equal(ui.answer.textContent, '42');
   assert.equal(ui.answer.hidden, false);
+});
+
+test('desktop shows the replacement for review and sends only the proposal ID on approval', async () => {
+  const originals = [];
+  const reviews = [];
+  const ui = questionUI([], {
+    startFileChange: async input => {
+      originals.push(input.instructions);
+      return { id: 'proposal-id', target: 'notes.txt', original: 'old text', replacement: '<script>new text</script>' };
+    },
+    approveFileChange: async id => { reviews.push(id); return true; }
+  });
+  await ui.select('#propose-codex-change').handlers.click();
+  assert.deepEqual(originals, ['synthetic']);
+  assert.deepEqual(reviews, []);
+  assert.equal(ui.select('#codex-change-review').hidden, false);
+  assert.equal(ui.select('#codex-change-replacement').textContent, '<script>new text</script>');
+  await ui.select('#approve-codex-change').handlers.click();
+  assert.deepEqual(reviews, ['proposal-id']);
+  assert.equal(ui.select('#codex-change-status').textContent, 'Approved change applied.');
+  assert.equal(ui.select('#codex-change-review').hidden, true);
+  assert.equal(ui.select('#codex-change-replacement').textContent, '');
 });

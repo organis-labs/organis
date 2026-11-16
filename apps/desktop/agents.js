@@ -43,9 +43,18 @@ const approvalView = document.querySelector('#codex-approval');
 const approvalDetails = document.querySelector('#codex-approval-details');
 const sendQuestion = document.querySelector('#send-codex');
 const cancelQuestion = document.querySelector('#cancel-codex-turn');
+const proposeChange = document.querySelector('#propose-codex-change');
+const discardChange = document.querySelector('#discard-codex-change');
+const changeStatus = document.querySelector('#codex-change-status');
+const changeReview = document.querySelector('#codex-change-review');
+const changePath = document.querySelector('#codex-change-path');
+const changeOriginal = document.querySelector('#codex-change-original');
+const changeReplacement = document.querySelector('#codex-change-replacement');
+const approveChange = document.querySelector('#approve-codex-change');
 const finished = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 let questionRunId;
 let questionActionError = false;
+let activeChange;
 
 function formatApproval({ approvalId, method, preview }) {
   const lines = [`Request ID: ${approvalId}`, `Request type: ${method}`];
@@ -71,6 +80,7 @@ questionForm.addEventListener('submit', async event => {
   if (!projectId) { questionStatus.textContent = 'Choose and register a project first.'; return; }
   const prompt = document.querySelector('#codex-prompt').value;
   sendQuestion.disabled = true;
+  proposeChange.disabled = true;
   questionActionError = false;
   answerView.hidden = true;
   questionStatus.textContent = 'Starting Codex…';
@@ -108,6 +118,7 @@ questionForm.addEventListener('submit', async event => {
     approvalDetails.textContent = '';
     cancelQuestion.hidden = true;
     sendQuestion.disabled = false;
+    proposeChange.disabled = false;
   }
 });
 
@@ -123,5 +134,66 @@ cancelQuestion.addEventListener('click', async () => {
     questionActionError = true;
     questionStatus.textContent = error.message;
     cancelQuestion.disabled = false;
+  }
+});
+
+function finishFileChange(operation, message) {
+  if (activeChange !== operation) return;
+  activeChange = undefined;
+  changeReview.hidden = discardChange.hidden = true;
+  changePath.textContent = changeOriginal.textContent = changeReplacement.textContent = '';
+  sendQuestion.disabled = proposeChange.disabled = false;
+  changeStatus.textContent = message;
+}
+
+proposeChange.addEventListener('click', async () => {
+  if (proposeChange.disabled) return;
+  const projectId = document.querySelector('#saved-project').value;
+  const input = document.querySelector('#codex-prompt');
+  if (!projectId || !input.value.trim()) {
+    changeStatus.textContent = 'Choose a project and describe the change first.';
+    return;
+  }
+  const operation = {};
+  activeChange = operation;
+  sendQuestion.disabled = proposeChange.disabled = true;
+  discardChange.hidden = discardChange.disabled = false;
+  changeStatus.textContent = 'Select a file and wait for the Codex proposal.';
+  try {
+    const proposal = await window.organisExecution.startFileChange({ projectId, instructions: input.value });
+    if (activeChange !== operation) return;
+    if (!proposal) { finishFileChange(operation, 'File change cancelled.'); return; }
+    operation.id = proposal.id;
+    changePath.textContent = proposal.target;
+    changeOriginal.textContent = proposal.original;
+    changeReplacement.textContent = proposal.replacement;
+    changeStatus.textContent = 'Review both versions before applying the replacement.';
+    approveChange.disabled = changeReview.hidden = false;
+  } catch (error) {
+    finishFileChange(operation, error.message);
+  }
+});
+
+discardChange.addEventListener('click', async () => {
+  const operation = activeChange;
+  if (!operation || discardChange.disabled) return;
+  discardChange.disabled = approveChange.disabled = true;
+  try {
+    await window.organisExecution.discardFileChange();
+    finishFileChange(operation, 'File change cancelled.');
+  } catch (error) {
+    finishFileChange(operation, error.message);
+  }
+});
+
+approveChange.addEventListener('click', async () => {
+  const operation = activeChange;
+  if (!operation?.id || approveChange.disabled) return;
+  approveChange.disabled = discardChange.disabled = true;
+  try {
+    const applied = await window.organisExecution.approveFileChange(operation.id);
+    finishFileChange(operation, applied ? 'Approved change applied.' : 'File change cancelled.');
+  } catch (error) {
+    finishFileChange(operation, error.message);
   }
 });

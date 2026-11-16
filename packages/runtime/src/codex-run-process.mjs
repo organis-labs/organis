@@ -5,6 +5,7 @@ import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { CodexConnection, codexEnvironment, codexFault, resolveCodex, testedCodexVersions } from './codex.mjs';
 import { createCodexApprovalIntake, describeCodexApproval, describeCodexPatch } from './codex-approval.mjs';
+import { fileChangeSchema } from './codex-file-change.mjs';
 import { prepareCodexProfile } from './codex-profile.mjs';
 import { ProjectRegistry } from './projects.mjs';
 
@@ -17,7 +18,7 @@ const isId = value => typeof value === 'string' && value.length > 0 && value.len
 const policyError = () => codexFault('CODEX_POLICY_UNVERIFIED');
 const protocolError = () => codexFault('CODEX_PROTOCOL_ERROR');
 
-async function run({ executable, prompt, fileId, durationMs, projectId, stateDir, profile }, { report, signal }) {
+async function run({ executable, prompt, fileId, durationMs, projectId, stateDir, profile, fileChange }, { report, signal }) {
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(codexFault('CODEX_RUN_TIMEOUT')), durationMs);
   let connection;
@@ -117,7 +118,8 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
     abort.signal.throwIfAborted();
     mayHaveStartedTurn = true;
     const started = await connection.request('turn/start', {
-      threadId, input: [{ type: 'text', text: prompt, text_elements: [] }]
+      threadId, input: [{ type: 'text', text: prompt, text_elements: [] }],
+      ...(fileChange ? { outputSchema: fileChangeSchema } : {})
     });
     if (!isId(started?.turn?.id)) throw protocolError();
     turnId = started.turn.id;

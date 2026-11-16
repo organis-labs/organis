@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('organisExecution', Object.freeze({
   start: options => ipcRenderer.invoke('execution:start', options),
   startCodex: options => ipcRenderer.invoke('execution:startCodex', options),
   codexResult: id => ipcRenderer.invoke('execution:codexResult', id),
+  startFileChange: options => ipcRenderer.invoke('execution:startFileChange', options),
+  approveFileChange: id => ipcRenderer.invoke('execution:approveFileChange', id),
+  discardFileChange: () => ipcRenderer.invoke('execution:discardFileChange'),
   events: id => ipcRenderer.invoke('execution:events', id),
   cancel: options => ipcRenderer.invoke('execution:cancel', options),
   reconcile: () => ipcRenderer.invoke('execution:reconcile')

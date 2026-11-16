@@ -61,6 +61,14 @@ if (operation === '--version') {
           notify('item/completed', { threadId, turnId, item: { type: 'agentMessage', text: 'SYNTHETIC_ANSWER' } });
           done('completed');
         }
+        if (scenario === 'desktop-file-change' && !params.input?.[0]?.text.includes('Wait for explicit cancellation')) {
+          if (!params.input?.[0]?.text.includes('Original fixture content')
+              || params.outputSchema?.properties?.replacement?.type !== 'string'
+              || params.outputSchema.additionalProperties !== false) process.exit(93);
+          notify('item/completed', { threadId, turnId, item: { type: 'agentMessage',
+            text: JSON.stringify({ replacement: 'Updated fixture content\n' }) } });
+          done('completed');
+        }
         if (['approval-early', 'approval-ended'].includes(scenario)) requestApproval();
         reply({ turn: { id: turnId, status: 'inProgress' } });
         if (scenario === 'option-like-prompt') done(params.input?.[0]?.text === '--help' ? 'completed' : 'failed');

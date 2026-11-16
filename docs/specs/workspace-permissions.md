@@ -338,3 +338,39 @@ projects and canary files:
 Until these pass, report the specific capability as unverified/unavailable. Unit
 tests, schema generation and a successful connection check are not substitutes for
 native permission-enforcement evidence.
+
+### R04 manual-write feasibility
+
+Checked against Organis `c5111f9` and Codex CLI `0.164.0` on 2026-11-16.
+The command and file-change protocols offer a request-scoped `accept` and a
+separate `acceptForSession`. They do not attach a new path policy or an
+Organis proposal digest to `accept`. With `on-request`, Codex can execute an
+ordinary sandboxed command without consulting the client. The patch safety
+check can also auto-approve a patch targeting writable paths. Switching the
+existing preview to `workspace-write` and exposing `accept` would therefore
+allow writes before any Organis approval.
+See the pinned [command decision schema](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/app-server-protocol/schema/typescript/v2/CommandExecutionApprovalDecision.ts),
+[file-change decision schema](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/app-server-protocol/schema/typescript/v2/FileChangeApprovalDecision.ts),
+[command policy](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/exec_policy.rs#L778-L807),
+and [patch safety check](https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/core/src/safety.rs#L71-L114).
+
+An offline `command/exec` canary used a fresh Codex profile and two synthetic
+files in sibling directories. Command networking was disabled in the request.
+The workspace-write policy used the project directory as its writable root
+and excluded the default temporary-directory grants.
+
+| Environment | Observed outcome |
+| --- | --- |
+| Ubuntu 24.04 on WSL2, root, bubblewrap 0.9.0 | Read-only project write failed and the file stayed unchanged. Workspace-write changed the project file and rejected the sibling write. |
+| Windows x64, unelevated sandbox setting | The server reported `ready`. All three commands failed before writing with `registered Core process has no package identity`. |
+
+This canary exercised the sandbox used by a direct client command. Approval
+delivery during a model turn, command networking, macOS, native Linux and a
+successful Windows sandboxed write still need runtime evidence.
+
+The [Desktop single-file preview](codex-read-only.md#propose-and-apply-a-single-file-change-in-desktop)
+uses an Organis-owned replacement after a read-only Codex turn. A proposal
+authorizes one existing file selected by the user. The native approval is
+bound to that run and file snapshot. General Codex write permissions and
+command approvals still require the separate enforcement and platform
+acceptance described above.

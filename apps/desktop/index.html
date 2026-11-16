@@ -79,12 +79,14 @@
         <p id="project-status" role="status">Loading project registry…</p>
         <form id="codex-question">
           <h3>Ask Codex</h3>
-          <p>Choose a trusted project above. Codex receives your message and can respond in text. File writes and shell commands are disabled.</p>
+          <p>Choose a trusted project above. Codex runs read-only. For a file proposal, Codex receives the selected file and the proposed text is saved in run history.</p>
           <label for="codex-prompt">Message</label>
           <textarea id="codex-prompt" rows="4" required></textarea>
           <div class="update-actions">
             <button id="send-codex" type="submit">Send read-only question</button>
+            <button id="propose-codex-change" type="button">Propose a file change</button>
             <button id="cancel-codex-turn" type="button" hidden>Cancel question</button>
+            <button id="discard-codex-change" type="button" hidden>Cancel file change</button>
           </div>
           <p id="codex-turn-status" role="status"></p>
           <details id="codex-approval" hidden>
@@ -93,6 +95,15 @@
             <pre id="codex-approval-details"></pre>
           </details>
           <pre id="codex-answer" aria-label="Codex answer" hidden></pre>
+          <p id="codex-change-status" role="status"></p>
+          <section id="codex-change-review" aria-label="Review file change" hidden>
+            <h4 id="codex-change-path"></h4>
+            <h5>Original</h5>
+            <pre id="codex-change-original"></pre>
+            <h5>Proposed replacement</h5>
+            <pre id="codex-change-replacement"></pre>
+            <button id="approve-codex-change" type="button">Review and apply</button>
+          </section>
         </form>
       </div>
     </section>

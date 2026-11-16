@@ -43,6 +43,8 @@ const approvalView = document.querySelector('#codex-approval');
 const approvalDetails = document.querySelector('#codex-approval-details');
 const sendQuestion = document.querySelector('#send-codex');
 const cancelQuestion = document.querySelector('#cancel-codex-turn');
+const chatGuide = document.querySelector('#chat-guide');
+const chatRequest = document.querySelector('#chat-request');
 const proposeChange = document.querySelector('#propose-codex-change');
 const discardChange = document.querySelector('#discard-codex-change');
 const changeStatus = document.querySelector('#codex-change-status');
@@ -55,6 +57,12 @@ const finished = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 let questionRunId;
 let questionActionError = false;
 let activeChange;
+
+function showChatRequest(text) {
+  chatGuide.hidden = true;
+  chatRequest.textContent = text;
+  chatRequest.hidden = false;
+}
 
 function formatApproval({ approvalId, method, preview }) {
   const lines = [`Request ID: ${approvalId}`, `Request type: ${method}`];
@@ -86,6 +94,7 @@ questionForm.addEventListener('submit', async event => {
   questionStatus.textContent = 'Starting Codex…';
   try {
     const run = await window.organisExecution.startCodex({ projectId, prompt, commandId: crypto.randomUUID() });
+    showChatRequest(prompt);
     questionRunId = run.id;
     cancelQuestion.hidden = false;
     cancelQuestion.disabled = false;
@@ -149,8 +158,8 @@ function finishFileChange(operation, message) {
 proposeChange.addEventListener('click', async () => {
   if (proposeChange.disabled) return;
   const projectId = document.querySelector('#saved-project').value;
-  const input = document.querySelector('#codex-prompt');
-  if (!projectId || !input.value.trim()) {
+  const instructions = document.querySelector('#codex-prompt').value;
+  if (!projectId || !instructions.trim()) {
     changeStatus.textContent = 'Choose a project and describe the change first.';
     return;
   }
@@ -160,9 +169,13 @@ proposeChange.addEventListener('click', async () => {
   discardChange.hidden = discardChange.disabled = false;
   changeStatus.textContent = 'Select a file and wait for the Codex proposal.';
   try {
-    const proposal = await window.organisExecution.startFileChange({ projectId, instructions: input.value });
+    const proposal = await window.organisExecution.startFileChange({ projectId, instructions });
     if (activeChange !== operation || operation.discarding) return;
     if (!proposal) { finishFileChange(operation, 'File change cancelled.'); return; }
+    answerView.hidden = true;
+    answerView.textContent = '';
+    questionStatus.textContent = '';
+    showChatRequest(instructions);
     operation.id = proposal.id;
     changePath.textContent = proposal.target;
     changeOriginal.textContent = proposal.original;

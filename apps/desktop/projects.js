@@ -8,7 +8,7 @@ const projectRemove = document.querySelector('#remove-project');
 const projectFile = document.querySelector('#pick-project-file');
 const projectFolder = document.querySelector('#pick-project-folder');
 const projectSave = document.querySelector('#save-project-path');
-const projectActions = [...document.querySelectorAll('#projects button, #projects select')];
+const projectActions = [projectSelect, ...document.querySelectorAll('#projects button, #projects select')];
 let draft;
 
 function clearDraft() {
@@ -22,7 +22,7 @@ async function renderProject() {
   const preview = await projectApi.preview(projectSelect.value);
   const description = document.createElement('p');
   const { sandbox, approvalMode, commandNetwork } = preview.requested;
-  description.textContent = `Requested: ${sandbox}, ${approvalMode} approval, command network ${commandNetwork ? 'enabled' : 'disabled'}. Effective policy unavailable. ${preview.reason}`;
+  description.textContent = `Selected project: ${projectSelect.selectedOptions[0].textContent}. Requested: ${sandbox}, ${approvalMode} approval, command network ${commandNetwork ? 'enabled' : 'disabled'}. Effective policy unavailable. ${preview.reason}`;
   projectDetails.append(description);
   const paths = document.createElement('ul');
   for (const entry of preview.paths) {

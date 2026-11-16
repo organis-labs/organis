@@ -41,6 +41,7 @@
   };
   const verdicts = { passed: 'Claude review passed', revision: 'Claude requested changes', failed: 'Claude review failed' };
   const stageNames = { plan: 'Claude plan', codex: 'Codex proposal', apply: 'File approval', review: 'Claude review' };
+  const refreshError = 'Unable to refresh the collaboration. Retrying…';
 
   let task;
   let pending;
@@ -48,6 +49,7 @@
   let refreshing = false;
   let generation = 0;
   let command;
+  let pollingFailed = false;
 
   function write(element, text = '') {
     if (element.textContent !== text) element.textContent = text;
@@ -58,6 +60,7 @@
   }
 
   function setError(message = '') {
+    pollingFailed = false;
     write(field('error'), task ? message : '');
     write(launchError, task ? '' : message);
     launchError.hidden = Boolean(task) || !message;
@@ -156,11 +159,14 @@
     try {
       const snapshot = await api.status();
       if (version === generation) {
-        if (field('error').textContent === 'Unable to refresh the collaboration. Retrying…') setError();
+        if (pollingFailed) setError();
         update(snapshot);
       }
     } catch {
-      if (version === generation && task) setError('Unable to refresh the collaboration. Retrying…');
+      if (version === generation && task && !field('error').textContent) {
+        setError(refreshError);
+        pollingFailed = true;
+      }
     } finally {
       refreshing = false;
     }

@@ -246,3 +246,49 @@ test('restart before provider launch frees the room only after checking ownershi
   confirmed = true;
   assert.equal((await reopened.status()).phase, 'interrupted');
 });
+
+test('a stopped review can be requested again without reapplying the approved file', async t => {
+  const f = fixture(t);
+  const { id, attempt } = await f.untilProposal();
+  const applied = await f.room.apply(id, attempt);
+  const previous = f.journal.read();
+  f.journal.write({ ...previous, phase: 'reviewing',
+    runs: [...previous.runs, { id: randomUUID(), stage: 'review', attempt, state: 'running' }] });
+
+  const reopened = createCollaboration(f.deps);
+  const recovered = await reopened.status();
+  assert.equal(recovered.phase, 'ready-to-review');
+  assert.equal(recovered.runs.at(-1).state, 'interrupted');
+  assert.equal(recovered.revision, applied.revision);
+  assert.equal(f.inputs.length, 2);
+  const reviewed = await reopened.review(id, attempt);
+  assert.equal(reviewed.phase, 'completed');
+  assert.equal(reviewed.review.verdict, 'passed');
+  assert.equal(f.state.writes, 1);
+});
+
+test('a review result is rejected if the approved revision changes during review', async t => {
+  const f = fixture(t);
+  const claude = f.deps.claude;
+  const responding = Promise.withResolvers();
+  const started = Promise.withResolvers();
+  const room = createCollaboration({ ...f.deps, claude: options => {
+    if (options.stage !== 'review') return claude(options);
+    started.resolve();
+    return responding.promise;
+  } });
+  const { id, attempt } = await room.prepare(f.request);
+  await room.plan(id, attempt);
+  await room.propose(id, attempt);
+  await room.apply(id, attempt);
+  const review = room.review(id, attempt);
+  await started.promise;
+  f.state.text = 'An edit made during the review.\n';
+  responding.resolve({ verdict: 'passed', summary: 'Matches the reviewed text.' });
+  const result = await review;
+  assert.equal(result.phase, 'failed');
+  assert.equal(result.review, undefined);
+  assert.equal(result.applied, true);
+  assert.match(result.message, /changed since approval/);
+  assert.equal(f.state.writes, 1);
+});

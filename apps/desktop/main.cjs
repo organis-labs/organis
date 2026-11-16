@@ -60,7 +60,7 @@ function createWindow() {
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.webContents.on('render-process-gone', () => {
-    execution?.discardFileChange();
+    execution?.cancelWindowActions();
     if (smoke) app.exit(1);
   });
   if (smoke) {

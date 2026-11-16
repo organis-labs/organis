@@ -120,8 +120,11 @@ export function createCollaboration({
         ? await verifyCodexTermination(run?.id, run?.commandId ?? run?.id)
         : ['plan', 'review'].includes(task.interruptedStage) && (run?.pid === undefined || processIsGone(run.pid));
       if (confirmed && task.phase === 'verification-required' && !operation) {
-        move('interrupted', 'The previous run has stopped. No action was replayed.',
-          { runs: updateRun({ state: 'interrupted', finishedAt: now() }) });
+        const canReview = task.interruptedStage === 'review' && task.applied === true;
+        move(canReview ? 'ready-to-review' : 'interrupted', canReview
+          ? 'The interrupted review has stopped. Confirm to review the applied change again.'
+          : 'The previous run has stopped. No action was replayed.',
+        { interruptedStage: undefined, runs: updateRun({ state: 'interrupted', finishedAt: now() }) });
       }
     }
     return view();
@@ -261,6 +264,8 @@ export function createCollaboration({
         plan: { summary: task.plan.summary, criteria: task.plan.criteria }, fileName: task.fileName, original: task.proposal.original,
         replacement: task.proposal.replacement, tests: task.tests
       }, signal, runId: run.id, onSpawn: pid => tracked({ pid }) });
+      signal.throwIfAborted();
+      await confirmAppliedRevision();
       signal.throwIfAborted();
       if (review.verdict === 'revision') {
         const canRevise = task.attempt <= maxRevisions;

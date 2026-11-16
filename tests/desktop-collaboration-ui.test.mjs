@@ -8,6 +8,7 @@ const script = readFileSync(new URL('../apps/desktop/collaboration.js', import.m
 
 function renderer(api) {
   const nodes = new Map();
+  let poll;
   const get = id => {
     if (!nodes.has(id)) {
       const events = new Map();
@@ -29,9 +30,9 @@ function renderer(api) {
     window: { organisCollaboration: api },
     document: { querySelector: get },
     crypto: { randomUUID: () => 'command-id' },
-    setInterval() {}
+    setInterval(callback) { poll = callback; }
   });
-  return { get, click };
+  return { get, click, async refresh() { poll(); await setImmediate(); } };
 }
 
 test('collaboration exposes each handoff before sending and separates application, review and test evidence', async () => {
@@ -105,4 +106,36 @@ test('cancel remains available during planning and a late plan cannot replace th
   assert.equal(ui.get('#collaboration').dataset.phase, 'cancelled');
   assert.equal(ui.get('#collaboration-propose').hidden, true);
   assert.equal(ui.get('#collaboration-dismiss').hidden, false);
+});
+
+test('status failures and recovery preserve the last action error', async () => {
+  const task = { id: 'task', attempt: 1, revisionLimit: 1, phase: 'ready-to-plan' };
+  let statusFails = false;
+  const ui = renderer({
+    async status() {
+      if (statusFails) throw new Error('Connection unavailable.');
+      return task;
+    },
+    async plan() {
+      statusFails = true;
+      throw new Error('Claude requires sign-in.');
+    }
+  });
+  await setImmediate();
+  const error = ui.get('#collaboration-error');
+
+  statusFails = true;
+  await ui.refresh();
+  assert.match(error.textContent, /Retrying/);
+  statusFails = false;
+  await ui.refresh();
+  assert.equal(error.textContent, '');
+
+  await ui.click('#collaboration-plan');
+  assert.equal(error.textContent, 'Claude requires sign-in.');
+  await ui.refresh();
+  assert.equal(error.textContent, 'Claude requires sign-in.');
+  statusFails = false;
+  await ui.refresh();
+  assert.equal(error.textContent, 'Claude requires sign-in.');
 });

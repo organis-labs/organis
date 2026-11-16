@@ -1,16 +1,19 @@
 const { dialog, ipcMain } = require('electron');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
+const { createFileChangeController } = require('./file-change.cjs');
 
 exports.createExecutionController = async ({ app, trustedSender, getWindow, stateDir, smokeWorkspace, getCodexExecutable }) => {
   const location = app.isPackaged
     ? path.join(process.resourcesPath, 'runtime', 'src', 'execution.mjs')
     : path.join(__dirname, '../../packages/runtime/src/execution.mjs');
   let runtime;
+  let fileChange;
   let unavailable;
   try {
     const { LocalRuntime } = await import(pathToFileURL(location).href);
     runtime = new LocalRuntime({ stateDir, busyTimeoutMs: 250 });
+    fileChange = createFileChangeController({ runtime, dialog, getWindow, getCodexExecutable });
   } catch (error) {
     unavailable = new Error(`Local execution is unavailable: ${error.message}. Your saved data was not reset. Check for an application update or repair the state directory.`);
   }
@@ -48,6 +51,9 @@ exports.createExecutionController = async ({ app, trustedSender, getWindow, stat
       const approval = run.state === 'awaiting_approval' ? runtime.pendingApproval(id) : null;
       return { state: run.state, answer, approval, errorCode: run.errorCode, ownershipRetained: run.ownershipRetained };
     },
+    startFileChange: options => fileChange.start(options),
+    approveFileChange: id => fileChange.approve(id),
+    discardFileChange: () => fileChange.discard(),
     events: id => runtime.events(id),
     cancel: async options => {
       if (!options || typeof options.id !== 'string' || typeof options.commandId !== 'string') throw new Error('Invalid cancellation.');
@@ -62,5 +68,10 @@ exports.createExecutionController = async ({ app, trustedSender, getWindow, stat
       return action(input);
     });
   }
-  return { close: async () => { await runtime?.close(); } };
+  return {
+    discardFileChange: () => fileChange?.discard().catch(() => {}),
+    close: async () => {
+      try { await fileChange?.discard(); } finally { await runtime?.close(); }
+    }
+  };
 };

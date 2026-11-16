@@ -47,9 +47,16 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs') }
   });
   mainWindow = window;
+  window.on('closed', () => execution?.discardFileChange());
+  window.webContents.on('did-start-navigation', ({ isSameDocument, isMainFrame }) => {
+    if (isMainFrame && !isSameDocument) execution?.discardFileChange();
+  });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
-  window.webContents.on('render-process-gone', () => { if (smoke) app.exit(1); });
+  window.webContents.on('render-process-gone', () => {
+    execution?.discardFileChange();
+    if (smoke) app.exit(1);
+  });
   if (smoke) {
     smokeTimer = setTimeout(() => { console.error('Desktop smoke timed out'); app.exit(1); }, 45000);
     window.webContents.once('did-fail-load', () => app.exit(1));

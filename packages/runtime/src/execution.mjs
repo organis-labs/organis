@@ -11,6 +11,7 @@ import {
 import { Store } from './store.mjs';
 import { codexEnvironment } from './codex.mjs';
 import { isCodexApprovalMethod } from './codex-approval.mjs';
+import { fileChangePrompt, inspectFile, parseFileChange, replaceFile } from './codex-file-change.mjs';
 import { killOwnedTree, pidAlive, waitForOwnedExit } from './process-tree.mjs';
 
 export {
@@ -90,6 +91,7 @@ export class LocalRuntime {
   #closed = false;
   #closePromise = null;
   #locals = new Map();
+  #fileChanges = new Map();
   #pendingInterrupt = new Map();
 
   constructor({ stateDir = defaultStateDir(), busyTimeoutMs, staleAfterMs = 10000, heartbeatMs = 1000 } = {}) {
@@ -188,7 +190,7 @@ export class LocalRuntime {
     return this.#enqueue(target, { kind: 'startFixture', commandId, mode, durationMs, scope, roomId, participantId, payloadHash });
   }
 
-  async startCodex({ projectId, prompt, executable, commandId, profile } = {}) {
+  async startCodex({ projectId, prompt, executable, commandId, profile, fileChangeWorkspaceId } = {}) {
     if (this.#closing || this.#closed) throw new RuntimeError('RUNTIME_CLOSED', 'The runtime is closed.');
     if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > 16384) {
       throw new RuntimeError('INVALID_ARGUMENT', 'The Codex prompt must contain 1 to 16384 UTF-8 bytes.');
@@ -202,15 +204,78 @@ export class LocalRuntime {
     if (profile !== undefined && !['cli', 'desktop'].includes(profile)) {
       throw new RuntimeError('INVALID_ARGUMENT', 'Invalid Organis Codex profile.');
     }
+    const target = await this.#codexWorkspace(projectId);
+    const fileChange = fileChangeWorkspaceId !== undefined;
+    if (fileChange && target.fileId !== fileChangeWorkspaceId) {
+      throw new RuntimeError('SCOPE_DENIED', 'The project changed. Select the file again.');
+    }
+    const payloadHash = hash({ kind: 'startCodex', projectId, fileId: target.fileId, prompt, executable: executable ?? null, profile,
+      ...(fileChange ? { fileChange } : {}) });
+    return this.#enqueue(target, { kind: 'startCodex', commandId, mode: CODEX_MODE, durationMs: CODEX_DURATION_MS, scope: 'read-only',
+      payloadHash, codex: { projectId, executable, prompt, profile, fileId: target.fileId, fileChange } });
+  }
+
+  async startCodexFileChange({ projectId, target, instructions, executable, signal }) {
+    const { canonical, fileId } = await this.#codexWorkspace(projectId);
+    signal.throwIfAborted();
+    const file = inspectFile(canonical, target);
+    const { run } = await this.startCodex({
+      projectId, prompt: fileChangePrompt(instructions, file), executable, profile: 'desktop', fileChangeWorkspaceId: fileId
+    });
+    this.#fileChanges.set(run.id, { projectId, file, workspace: canonical, workspaceId: fileId });
+    return run;
+  }
+
+  discardCodexFileChange(runId) {
+    this.#fileChanges.delete(runId);
+  }
+
+  previewCodexFileChange(runId) {
+    const proposal = this.#fileChanges.get(runId);
+    if (!proposal) throw new RuntimeError('SCOPE_DENIED', 'This proposal is no longer available.');
+    const { file, workspace } = proposal;
+    return this.#db(() => {
+      const run = this.#requireRow(runId);
+      if (run.owner_id !== this.ownerId || run.mode !== CODEX_MODE || run.state !== 'completed'
+          || run.ownership_retained || run.workspace !== workspace) {
+        throw new RuntimeError('SCOPE_DENIED',
+          `Codex did not complete the proposal${run.error_code ? ` (${run.error_code})` : ''}.`);
+      }
+      const answer = this.#store.get("SELECT data FROM events WHERE run_id=? AND type='codex_answer'", runId);
+      return { target: file.target, original: file.text, replacement: parseFileChange(answer && JSON.parse(answer.data).text, file.text) };
+    });
+  }
+
+  async applyCodexFileChange(runId, { signal }) {
+    const { replacement } = this.previewCodexFileChange(runId);
+    const proposal = this.#fileChanges.get(runId);
+    this.#fileChanges.delete(runId);
+    const workspace = await this.#codexWorkspace(proposal.projectId);
+    signal.throwIfAborted();
+    if (this.#closing || workspace.canonical !== proposal.workspace || workspace.fileId !== proposal.workspaceId) {
+      throw new RuntimeError('SCOPE_DENIED', 'The project changed. Ask Codex for a new proposal.');
+    }
+    // Record authorization before the filesystem operation. This event does not assert that the write succeeded.
+    this.#db(() => this.#store.tx(() => this.#store.addEvent(runId, 'codex_file_change_authorized', {})));
+    this.#db(() => this.#store.tx(() => {
+      if (this.#store.get('SELECT 1 FROM workspaces WHERE (key=? OR file_id=?) AND busy_run_id IS NOT NULL',
+        workspace.key, workspace.fileId)) throw new RuntimeError('WORKSPACE_BUSY', 'Another run holds this workspace.');
+      replaceFile(workspace.canonical, proposal.file, replacement, () => {
+        if (this.#resolveWorkspace(workspace.canonical).fileId !== workspace.fileId) {
+          throw new RuntimeError('SCOPE_DENIED', 'The project directory changed.');
+        }
+      });
+    }));
+  }
+
+  async #codexWorkspace(projectId) {
     const { ProjectRegistry } = await import('./projects.mjs');
     const registry = new ProjectRegistry(this.#stateDir);
     let registration;
     try { registration = await registry.codexTarget(projectId); } finally { registry.close(); }
     const target = this.#resolveWorkspace(registration.workspace);
     if (target.fileId !== registration.fileId) throw new RuntimeError('INVALID_WORKSPACE', 'The project registration changed.');
-    const payloadHash = hash({ kind: 'startCodex', projectId, fileId: target.fileId, prompt, executable: executable ?? null, profile });
-    return this.#enqueue(target, { kind: 'startCodex', commandId, mode: CODEX_MODE, durationMs: CODEX_DURATION_MS, scope: 'read-only',
-      payloadHash, codex: { projectId, executable, prompt, profile, fileId: target.fileId } });
+    return target;
   }
 
   #enqueue({ canonical, key, fileId }, { kind, commandId, mode, durationMs, scope, roomId, participantId, payloadHash, codex }) {
@@ -828,6 +893,7 @@ export class LocalRuntime {
 
   async #close() {
     this.#closing = true;
+    this.#fileChanges.clear();
     const locals = [...this.#locals.values()];
     const work = Promise.allSettled(locals.map(async local => {
       if (local.done) return;

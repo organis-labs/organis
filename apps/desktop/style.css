@@ -36,5 +36,7 @@ select { font: inherit; padding: 8px; max-width: 100%; }
 #codex-prompt { width: 100%; resize: vertical; padding: 8px; font: inherit; }
 #codex-turn-status { margin-top: 12px; }
 #codex-answer, #codex-approval-details { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: #e7e9df; padding: 12px; border-radius: 8px; }
+#codex-change-review pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #e7e9df; padding: 12px; border-radius: 8px; }
+#codex-change-path { overflow-wrap: anywhere; }
 #codex-approval-details { font-family: monospace; max-height: 300px; overflow: auto; }
 #claude-path { overflow-wrap: anywhere; }

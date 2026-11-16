@@ -89,3 +89,28 @@ Both clients use the provider's `never` approval policy and the read-only
 sandbox. Authority grants and writable execution remain separate R04 work. The
 CLI can explicitly deny a pending request. Desktop can cancel the run. CI
 exercises approval requests with a synthetic app-server.
+
+## Propose and apply a single file change in Desktop
+
+Choose a registered trusted project, describe the change, then choose
+**Propose a file change** and select an existing UTF-8 text file of up to
+4 KiB directly inside the project root. The selected text is sent to Codex
+as part of the prompt. The proposed text is saved in the local run history
+through the existing answer event. Approval is valid only in the Desktop
+window that requested the proposal.
+
+Codex drafts the complete replacement in a read-only turn. Review the
+original and replacement, then choose **Review and apply** and confirm
+**Apply change** in the native dialog. Organis checks the completed run,
+project identity and original file again, then replaces that one file. The
+run records that the user authorized application before the write attempt.
+The authorization event alone does not establish that the file was written.
+An unapproved, cancelled or discarded proposal cannot write. Closing or
+reloading the app window discards the proposal. A changed file or another
+Organis run holding the workspace blocks application.
+
+Use the preview in a trusted project without concurrent external editors
+or directory changes during application. The final filesystem check and
+rename are separate operations. A replacement preserves POSIX permission
+bits, while file metadata such as custom ACLs or extended attributes can
+change.

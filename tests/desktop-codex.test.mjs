@@ -132,3 +132,26 @@ test('desktop shows the replacement for review and sends only the proposal ID on
   assert.equal(ui.select('#codex-change-review').hidden, true);
   assert.equal(ui.select('#codex-change-replacement').textContent, '');
 });
+
+test('desktop keeps the start buttons disabled until file-change cancellation completes', async () => {
+  const proposal = Promise.withResolvers();
+  const stopped = Promise.withResolvers();
+  const ui = questionUI([], {
+    startFileChange: () => proposal.promise,
+    discardFileChange: () => stopped.promise
+  });
+  const propose = ui.select('#propose-codex-change');
+  const status = ui.select('#codex-change-status');
+  const starting = propose.handlers.click();
+  const discarding = ui.select('#discard-codex-change').handlers.click();
+  proposal.resolve(null);
+  await starting;
+  assert.equal(ui.send.disabled, true);
+  assert.equal(propose.disabled, true);
+  assert.match(status.textContent, /Cancelling/);
+  stopped.resolve(true);
+  await discarding;
+  assert.equal(ui.send.disabled, false);
+  assert.equal(propose.disabled, false);
+  assert.equal(status.textContent, 'File change cancelled.');
+});

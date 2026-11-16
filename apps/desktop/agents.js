@@ -161,7 +161,7 @@ proposeChange.addEventListener('click', async () => {
   changeStatus.textContent = 'Select a file and wait for the Codex proposal.';
   try {
     const proposal = await window.organisExecution.startFileChange({ projectId, instructions: input.value });
-    if (activeChange !== operation) return;
+    if (activeChange !== operation || operation.discarding) return;
     if (!proposal) { finishFileChange(operation, 'File change cancelled.'); return; }
     operation.id = proposal.id;
     changePath.textContent = proposal.target;
@@ -170,14 +170,16 @@ proposeChange.addEventListener('click', async () => {
     changeStatus.textContent = 'Review both versions before applying the replacement.';
     approveChange.disabled = changeReview.hidden = false;
   } catch (error) {
-    finishFileChange(operation, error.message);
+    if (!operation.discarding) finishFileChange(operation, error.message);
   }
 });
 
 discardChange.addEventListener('click', async () => {
   const operation = activeChange;
   if (!operation || discardChange.disabled) return;
+  operation.discarding = true;
   discardChange.disabled = approveChange.disabled = true;
+  changeStatus.textContent = 'Cancelling file change…';
   try {
     await window.organisExecution.discardFileChange();
     finishFileChange(operation, 'File change cancelled.');

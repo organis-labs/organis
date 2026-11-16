@@ -111,9 +111,37 @@ test('cancelling an active Codex proposal leaves both files unchanged', { timeou
     [run] = fixture.runtime.listRuns();
   }
   assert.equal(await fixture.controller.discard(), true);
+  assert.equal(fixture.runtime.getRun(run.id).state, 'cancelled');
+  assert.equal(fixture.runtime.getRun(run.id).ownershipRetained, false);
   assert.equal(await pending, null);
-  assert.equal((await fixture.runtime.wait(run.id)).state, 'cancelled');
   await fixture.assertUnchanged();
+});
+
+test('discard waits for a launch that has not returned its run ID', async () => {
+  const launching = Promise.withResolvers();
+  const launched = Promise.withResolvers();
+  const stopped = Promise.withResolvers();
+  const cancelling = Promise.withResolvers();
+  const runtime = {
+    startCodexFileChange() { launching.resolve(); return launched.promise; },
+    discardCodexFileChange() {},
+    async cancel(id) { cancelling.resolve(id); },
+    wait() { return stopped.promise; }
+  };
+  const dialog = { async showOpenDialog() { return { canceled: false, filePaths: ['notes.txt'] }; } };
+  const controller = createFileChangeController({ runtime, dialog, getWindow: () => ({}), getCodexExecutable: () => null });
+  const proposal = controller.start({ projectId: 'project', instructions: 'Make a change' });
+  await launching.promise;
+  let finished = false;
+  const discarded = controller.discard().then(value => { finished = true; return value; });
+  await new Promise(setImmediate);
+  assert.equal(finished, false);
+  launched.resolve({ id: 'run' });
+  assert.equal(await cancelling.promise, 'run');
+  assert.equal(await proposal, null);
+  assert.equal(finished, false);
+  stopped.resolve({ state: 'cancelled', ownershipRetained: false });
+  assert.equal(await discarded, true);
 });
 
 test('a replacement of the target after preview invalidates approval even when its contents match', async t => {

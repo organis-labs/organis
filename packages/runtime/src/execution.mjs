@@ -13,6 +13,7 @@ import { codexEnvironment } from './codex.mjs';
 import { isCodexApprovalMethod } from './codex-approval.mjs';
 import { fileChangePrompt, inspectFile, parseFileChange, replaceFile } from './codex-file-change.mjs';
 import { killOwnedTree, pidAlive, waitForOwnedExit } from './process-tree.mjs';
+import { toRunSnapshot as toSnapshot } from './run-snapshot.mts';
 
 export {
   APPROVAL_STATES, ERROR_CODES, ENTITY_CONTRACTS, FIXTURE_CAPABILITY, LIVE_STATES, RUN_STATES, RuntimeError,
@@ -60,18 +61,6 @@ function realOrNull(target) {
   try { return fs.realpathSync.native(target); } catch { return null; }
 }
 
-function toSnapshot(row) {
-  return {
-    id: row.id, taskId: row.task_id, attemptId: row.attempt_id, roomId: row.room_id,
-    participantId: row.participant_id, commandId: row.command_id, workspace: row.workspace, mode: row.mode,
-    durationMs: row.duration_ms, scope: row.scope, state: row.state, approvalState: row.approval_state,
-    ownerId: row.owner_id, coordinatorPid: row.coordinator_pid, processPid: row.process_pid,
-    exitCode: row.exit_code, errorCode: row.error_code, ownershipRetained: Boolean(row.ownership_retained),
-    cancelRequestedAt: row.cancel_requested_at, createdAt: row.created_at, updatedAt: row.updated_at,
-    startedAt: row.started_at, endedAt: row.ended_at
-  };
-}
-
 function persistenceError(error) {
   if (error instanceof RuntimeError) return error;
   return new RuntimeError('PERSISTENCE_FAILED', 'Runtime state could not be read or written.', { cause: error });
@@ -94,6 +83,7 @@ export class LocalRuntime {
   #fileChanges = new Map();
   #pendingInterrupt = new Map();
 
+  /** @param {{stateDir?: string, busyTimeoutMs?: number, staleAfterMs?: number, heartbeatMs?: number}} [options] */
   constructor({ stateDir = defaultStateDir(), busyTimeoutMs, staleAfterMs = 10000, heartbeatMs = 1000 } = {}) {
     this.#stateDir = path.resolve(stateDir);
     try {
@@ -139,14 +129,17 @@ export class LocalRuntime {
 
   // ---- public API ----
 
+  /** @param {string} id @returns {import('./execution-types.mjs').RunSnapshot} */
   getRun(id) {
     return this.#db(() => toSnapshot(this.#requireRow(id)));
   }
 
+  /** @returns {import('./execution-types.mjs').RunSnapshot[]} */
   listRuns() {
     return this.#db(() => this.#store.all('SELECT * FROM runs ORDER BY created_at DESC, rowid DESC').map(toSnapshot));
   }
 
+  /** @param {string} id @returns {import('./execution-types.mjs').RunEvent[]} */
   events(id, after = 0) {
     if (!Number.isInteger(after) || after < 0) throw new RuntimeError('INVALID_ARGUMENT', 'after must be a nonnegative integer.');
     return this.#db(() => {
@@ -156,6 +149,7 @@ export class LocalRuntime {
     });
   }
 
+  /** @param {import('./execution-types.mjs').FixtureRequest} options @returns {Promise<import('./execution-types.mjs').AcceptedRun>} */
   async startFixture(options = {}) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) {
       throw new RuntimeError('INVALID_ARGUMENT', 'startFixture options must be an object.');
@@ -190,6 +184,7 @@ export class LocalRuntime {
     return this.#enqueue(target, { kind: 'startFixture', commandId, mode, durationMs, scope, roomId, participantId, payloadHash });
   }
 
+  /** @param {import('./execution-types.mjs').CodexRequest} options @returns {Promise<import('./execution-types.mjs').AcceptedRun>} */
   async startCodex({ projectId, prompt, executable, commandId, profile, fileChangeWorkspaceId, roomId, participantId } = {}) {
     if (this.#closing || this.#closed) throw new RuntimeError('RUNTIME_CLOSED', 'The runtime is closed.');
     if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > 16384) {
@@ -239,6 +234,7 @@ export class LocalRuntime {
     this.#fileChanges.delete(runId);
   }
 
+  /** @param {string} runId @returns {import('./execution-types.mjs').FileChange} */
   previewCodexFileChange(runId) {
     const proposal = this.#fileChanges.get(runId);
     if (!proposal) throw new RuntimeError('SCOPE_DENIED', 'This proposal is no longer available.');
@@ -357,10 +353,12 @@ export class LocalRuntime {
     }
   }
 
+  /** @param {string} id @param {{commandId?: string}} [options] @returns {Promise<import('./execution-types.mjs').RunSnapshot>} */
   async cancel(id, { commandId } = {}) {
     return this.#requestCancel(id, commandId);
   }
 
+  /** @param {string} id @returns {import('./execution-types.mjs').PendingApproval | null} */
   pendingApproval(id) {
     return this.#db(() => {
       const row = this.#store.get(
@@ -392,6 +390,7 @@ export class LocalRuntime {
     }));
   }
 
+  /** @returns {import('./execution-types.mjs').RunSnapshot[]} */
   reconcile() {
     this.#assertOpen();
     const rows = this.#db(() => this.#store.all(

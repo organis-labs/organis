@@ -7,6 +7,7 @@
       "{workspaceRoot}/package-lock.json",
       "{workspaceRoot}/.node-version",
       "{workspaceRoot}/nx.json",
+      "{workspaceRoot}/tsconfig.json",
       "{workspaceRoot}/NODE-LICENSE.txt",
       "{workspaceRoot}/.github/workflows/**/*",
       "{workspaceRoot}/scripts/**/*",

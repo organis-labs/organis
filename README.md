@@ -18,12 +18,16 @@ Use Node **24.22.2** with its bundled npm.
 npm ci --ignore-scripts
 node node_modules/electron/install.js
 node node_modules/esbuild/install.js
+npm run typecheck
 npm test
 npm start
 npm run cli -- status --json
 npm run build
 npm run verify:platform
 ```
+
+The shared execution and collaboration contracts are checked with TypeScript.
+`npm test` and the native packaging script both require the type check to pass.
 
 Nx models `cli`, `desktop` and their shared `runtime` dependency. `npm run build`
 packages both applications independently; `npm run build:cli` and
@@ -237,11 +241,23 @@ or keychain exports in this repository.
 CodeRabbit uses the repository's `AGENTS.md` and the path-specific instructions in
 `.coderabbit.yaml`. The configuration maps `docs/local-execution.md` to the runtime,
 clients and their verification code, and `docs/roadmap.md` to the whole repository.
-Update the execution contract when behavior changes; mark future milestones and
-contract-only entities explicitly so reviewers can distinguish them from current
-requirements. Change the configuration's `reviews.path_instructions` to add
-area-specific review criteria, and `knowledge_base.code_guidelines.filePatterns`
-to map another domain document to the code it governs.
+Desktop, runtime and collaboration test reviews also reference the
+[R08 collaboration spec](docs/specs/room-collaboration.md) and the
+[R09 local collaboration contract](docs/specs/local-collaboration.md).
+
+For a new spec or guide under `docs/`, use the filename suffix that matches
+the code it governs. CodeRabbit picks up these names automatically.
+
+- `.desktop.md` for `apps/desktop/`
+- `.runtime.md` for `packages/runtime/`
+- `.cli.md` for `apps/cli/`
+- `.shared.md` for all three
+
+For documents that govern a narrower set of files or also cover tests or build
+scripts, use an explicit `files` and `applyTo` entry in
+`knowledge_base.code_guidelines.filePatterns`. Add path-specific checks under
+`reviews.path_instructions`. Label drafts and open decisions in each document,
+and update the implementation contract when behavior changes.
 
 ## Layout
 

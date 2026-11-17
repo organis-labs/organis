@@ -1,8 +1,12 @@
 const { randomUUID } = require('node:crypto');
 
+/** @param {{ runtime: import('../../packages/runtime/src/execution.mjs').LocalRuntime,
+ * dialog: Electron.Dialog, getWindow: () => Electron.BrowserWindow,
+ * getCodexExecutable: () => string | undefined }} options */
 exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExecutable }) => {
   let pending;
 
+  /** @returns {Promise<boolean>} */
   async function discard() {
     const change = pending;
     if (!change) return false;
@@ -30,6 +34,12 @@ exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExec
   return {
     discard,
     isPending: () => Boolean(pending),
+    /**
+     * @param {{projectId: string, instructions: string}} input
+     * @param {{target: string, expected?: Awaited<ReturnType<import('../../packages/runtime/src/execution.mjs').LocalRuntime['inspectCodexFileChangeTarget']>>,
+     * commandId?: string, roomId?: string, participantId?: string, onRun?: (id: string) => void}} [selection]
+     * @returns {Promise<(import('../../packages/runtime/src/execution-types.mjs').FileChange & {id: string}) | null>}
+     */
     async start({ projectId, instructions } = {}, selection) {
       if (pending) throw new Error('Finish or cancel the current file change first.');
       if (typeof projectId !== 'string' || typeof instructions !== 'string' || !instructions.trim()) {
@@ -74,6 +84,7 @@ exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExec
         }
       }
     },
+    /** @param {string} id @param {() => void} [beforeApply] */
     async approve(id, beforeApply) {
       const change = pending;
       if (!change?.preview || change.confirming || change.cancellation || change.id !== id) throw new Error('This proposal is no longer available.');

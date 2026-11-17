@@ -7,12 +7,10 @@ reviews:
     - path: "**/*"
       instructions: |
         Use AGENTS.md, README.md and the mapped domain documents as context.
-        Distinguish implemented behavior from roadmap proposals and contract-only
-        entities. M1 runs only a bundled fixture; R03 checks an installed Codex
-        connection but does not start agent tasks. Real agent execution, providers,
-        remote hosts and interactive approvals are later milestones. Report concrete
-        regressions with a trigger and impact, including contradictions between
-        the code and its documented contract.
+        Distinguish implemented behavior from drafts, proposed milestones and
+        open decisions. Use the current implementation contract for behavior
+        that already exists. Report concrete regressions with a trigger and impact,
+        including contradictions between the code and its documented contract.
     - path: "packages/runtime/**"
       instructions: |
         Review ownership, persistence and lifecycle against docs/local-execution.md.
@@ -52,3 +50,16 @@ knowledge_base:
         applyTo: "packages/runtime/src/codex.mjs, apps/cli/**, apps/desktop/**, tests/**"
       - files: "docs/decisions/first-agent-adapter.md"
         applyTo: "packages/runtime/src/codex.mjs, apps/cli/**, apps/desktop/**, tests/**"
+      - files: "docs/specs/room-collaboration.md"
+        applyTo: "apps/desktop/**, packages/runtime/**, tests/*collaboration*.test.*"
+      - files: "docs/specs/local-collaboration.md"
+        applyTo: "apps/desktop/**, packages/runtime/**, tests/*collaboration*.test.*"
+      # Scope new specs and guides by the qualifier before .md.
+      - files: "docs/**/*.desktop.md"
+        applyTo: "apps/desktop/**"
+      - files: "docs/**/*.runtime.md"
+        applyTo: "packages/runtime/**"
+      - files: "docs/**/*.cli.md"
+        applyTo: "apps/cli/**"
+      - files: "docs/**/*.shared.md"
+        applyTo: "apps/desktop/**, packages/runtime/**, apps/cli/**"

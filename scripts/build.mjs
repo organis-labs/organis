@@ -34,6 +34,7 @@ function run(command, args, options = {}) {
   if (result.status !== 0) throw new Error(`${command} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim();
 }
+run(process.execPath, [join(root, 'node_modules', 'typescript', 'bin', 'tsc'), '--noEmit']);
 const sourceSha = run('git', ['rev-parse', 'HEAD']);
 if (!/^[a-f0-9]{40}$/.test(sourceSha)) throw new Error('Invalid Git source commit');
 if (process.env.ORGANIS_SOURCE_SHA && process.env.ORGANIS_SOURCE_SHA !== sourceSha) throw new Error('Source SHA mismatch');

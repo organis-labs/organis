@@ -18,12 +18,16 @@ Use Node **24.22.2** with its bundled npm.
 npm ci --ignore-scripts
 node node_modules/electron/install.js
 node node_modules/esbuild/install.js
+npm run typecheck
 npm test
 npm start
 npm run cli -- status --json
 npm run build
 npm run verify:platform
 ```
+
+The shared execution and collaboration contracts are checked with TypeScript.
+`npm test` and the native packaging script both require the type check to pass.
 
 Nx models `cli`, `desktop` and their shared `runtime` dependency. `npm run build`
 packages both applications independently; `npm run build:cli` and

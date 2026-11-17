@@ -1,18 +1,21 @@
+// @ts-check
 (() => {
   const api = window.organisCollaboration;
   if (!api) return;
 
-  const field = name => document.querySelector(`#collaboration-${name}`);
-  const room = document.querySelector('#collaboration');
-  const prepare = document.querySelector('#prepare-collaboration');
-  const project = document.querySelector('#saved-project');
-  const prompt = document.querySelector('#codex-prompt');
-  const composer = document.querySelector('#codex-question');
-  const codexActions = document.querySelector('#chat-submit');
+  /** @param {string} name */
+  const field = name => /** @type {HTMLElement & {disabled?: boolean}} */ (document.querySelector(`#collaboration-${name}`));
+  const room = /** @type {HTMLElement} */ (document.querySelector('#collaboration'));
+  const prepare = /** @type {HTMLButtonElement} */ (document.querySelector('#prepare-collaboration'));
+  const project = /** @type {HTMLSelectElement} */ (document.querySelector('#saved-project'));
+  const prompt = /** @type {HTMLTextAreaElement} */ (document.querySelector('#codex-prompt'));
+  const composer = /** @type {HTMLFormElement} */ (document.querySelector('#codex-question'));
+  const codexActions = /** @type {HTMLElement} */ (document.querySelector('#chat-submit'));
   const launchError = field('launch-error');
-  const testEntry = field('test-entry');
-  const testForm = field('test-form');
+  const testEntry = /** @type {HTMLDetailsElement} */ (field('test-entry'));
+  const testForm = /** @type {HTMLFormElement} */ (field('test-form'));
 
+  /** @type {Partial<Record<import('../../packages/runtime/src/collaboration-types.mjs').CollaborationPhase, keyof typeof api>>} */
   const availableAction = {
     'ready-to-plan': 'plan',
     'ready-to-propose': 'propose',
@@ -43,18 +46,23 @@
   const stageNames = { plan: 'Claude plan', codex: 'Codex proposal', apply: 'File approval', review: 'Claude review' };
   const refreshError = 'Unable to refresh the collaboration. Retrying…';
 
+  /** @type {import('../../packages/runtime/src/collaboration-types.mjs').CollaborationSnapshot | undefined} */
   let task;
+  /** @type {string | undefined} */
   let pending;
   let cancelling = false;
   let refreshing = false;
   let generation = 0;
+  /** @type {import('../../packages/runtime/src/collaboration-types.mjs').CollaborationRequest | undefined} */
   let command;
   let pollingFailed = false;
 
+  /** @param {HTMLElement} element */
   function write(element, text = '') {
     if (element.textContent !== text) element.textContent = text;
   }
 
+  /** @param {string} name @param {boolean} visible */
   function show(name, visible) {
     field(name).hidden = !visible;
   }
@@ -117,7 +125,7 @@
     write(field('test-records'), testEvidence.join('\n\n'));
 
     show('review-view', Boolean(review));
-    write(field('verdict'), verdicts[review?.verdict]);
+    write(field('verdict'), review ? verdicts[review.verdict] : '');
     write(field('review-summary'), review?.summary);
     show('history', Boolean(runs.length));
     const identifiers = `Room: ${task.roomId}\nTask: ${task.id}`;
@@ -140,6 +148,7 @@
     field('dismiss').disabled = Boolean(pending || cancelling);
   }
 
+  /** @param {import('../../packages/runtime/src/collaboration-types.mjs').CollaborationSnapshot | null} snapshot */
   function update(snapshot) {
     const opened = !task && snapshot;
     if (snapshot?.id !== task?.id || snapshot?.attempt !== task?.attempt) {
@@ -172,6 +181,7 @@
     }
   }
 
+  /** @param {string} action @param {() => ReturnType<typeof api.status>} operation */
   async function perform(action, operation) {
     if (pending || cancelling) return;
     pending = action;
@@ -182,7 +192,7 @@
       const snapshot = await operation();
       if (version === generation && snapshot !== undefined) update(snapshot);
     } catch (error) {
-      if (version === generation) setError(error.message);
+      if (version === generation) setError(/** @type {Error} */ (error).message);
     } finally {
       generation++;
       pending = undefined;
@@ -201,16 +211,18 @@
     if (!command || command.projectId !== projectId || command.request !== request) {
       command = { projectId, request, commandId: crypto.randomUUID() };
     }
+    const requestToSend = command;
     void perform('prepare', async () => {
-      const prepared = await api.prepare(command);
+      const prepared = await api.prepare(requestToSend);
       command = undefined;
       return prepared;
     });
   });
 
-  for (const action of ['plan', 'propose', 'apply', 'review', 'revise', 'dismiss']) {
+  for (const action of /** @type {const} */ (['plan', 'propose', 'apply', 'review', 'revise', 'dismiss'])) {
     field(action).addEventListener('click', () => {
-      if (task) void perform(action, () => api[action](task.id, task.attempt));
+      const activeTask = task;
+      if (activeTask) void perform(action, () => api[action](activeTask.id, activeTask.attempt));
     });
   }
 
@@ -224,7 +236,7 @@
       const snapshot = await api.cancel(task.id, task.attempt);
       if (snapshot !== undefined) update(snapshot);
     } catch (error) {
-      setError(error.message);
+      setError(/** @type {Error} */ (error).message);
     } finally {
       generation++;
       cancelling = false;

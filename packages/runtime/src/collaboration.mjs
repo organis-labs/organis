@@ -66,6 +66,7 @@ export function createCollaboration({
     task = next;
   }
   function set(changes) { save({ ...task, ...changes, updatedAt: now() }); }
+  /** @returns {import('./collaboration-types.mjs').CollaborationSnapshot | null} */
   function view() {
     if (!task || task.dismissed) return null;
     const { commandId, requestHash, fingerprint, interruptedStage, runs, ...snapshot } = task;
@@ -130,6 +131,7 @@ export function createCollaboration({
     return view();
   }
 
+  /** @param {import('./collaboration-types.mjs').CollaborationRequest} input */
   async function prepare({ projectId, request, commandId } = {}) {
     if (closing || !uuid.test(commandId ?? '') || typeof projectId !== 'string' || !validText(request, 3000)) {
       throw invalid('Select a registered project and enter a collaboration request of up to 3000 bytes.');
@@ -277,6 +279,7 @@ export function createCollaboration({
     });
   }
 
+  /** @param {import('./collaboration-types.mjs').RecordTestRequest} input */
   async function recordTest({ id, attempt, command, actor, exitCode, result, revision } = {}) {
     expect(id, attempt, 'ready-to-review');
     if (!validText(command, 512) || !validText(actor, 120) || !validText(result, 768) ||

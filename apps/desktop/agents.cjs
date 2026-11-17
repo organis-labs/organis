@@ -53,6 +53,7 @@ exports.createAgentController = async ({ app, trustedSender, getWindow, smokeExe
   });
   return {
     getExecutable: () => executable,
+    getClaudeExecutable: () => claudeExecutable,
     close: async () => { closing = true; abort?.abort(); await pending; }
   };
 };

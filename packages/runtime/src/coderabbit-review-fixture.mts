@@ -1,1 +1,2 @@
-export const scope = 'Runtime';
+export const scope = 'runtime';
+console.log(scope);

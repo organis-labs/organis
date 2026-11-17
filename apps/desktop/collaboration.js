@@ -20,7 +20,7 @@
     'ready-to-plan': 'plan',
     'ready-to-propose': 'propose',
     'awaiting-approval': 'apply',
-    'ready-to-review': 'plan',
+    'ready-to-review': 'review',
     'revision-requested': 'revise'
   };
   const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'revision-limit']);
@@ -109,8 +109,9 @@
     write(field('review-criteria'), phase === 'ready-to-review' ? plan?.criteria.map(item => `• ${item}`).join('\n') : '');
     write(field('original'), proposal?.original);
     write(field('replacement'), proposal?.replacement);
-    show('applied', Boolean(applied));
-    write(field('applied'), applied ? 'Approved replacement applied to this file.' : '');
+    const showApplied = applied || phase === 'applying';
+    show('applied', showApplied);
+    write(field('applied'), showApplied ? 'Approved replacement applied to this file.' : '');
 
     const canRecord = phase === 'ready-to-review' && Boolean(task.revision) && tests.length < 4;
     show('verification', Boolean(applied));

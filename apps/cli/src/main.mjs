@@ -11,7 +11,7 @@ if (help === null) {
 } else if (help !== undefined) {
   console.log(help);
 } else if (args.length === 1 && ['--version', '-v'].includes(args[0])) {
-  console.log(version);
+  console.log('Organis CLI ' + version);
 } else if (args[0] === 'status' && (args.length === 1 || (args.length === 2 && args[1] === '--json'))) {
   const status = { ...getStatus(), version };
   console.log(args[1] === '--json' ? JSON.stringify({ ...status, codexReadOnlyExecutionPreview: true }) :

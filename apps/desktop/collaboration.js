@@ -86,7 +86,7 @@
 
     const { phase, plan, proposal, review, applied, tests = [], runs = [] } = task;
     room.dataset.phase = phase;
-    write(field('status'), task.message || phases[phase] || '');
+    write(field('status'), phase === 'verification-required' ? 'Execution stopped.' : task.message || phases[phase] || '');
     write(field('target'), task.target ?? task.fileName);
     write(field('attempt'), `Attempt ${task.attempt} · ${task.revisionLimit} revision allowed`);
     show('brief', phase === 'ready-to-plan');
@@ -109,9 +109,8 @@
     write(field('review-criteria'), phase === 'ready-to-review' ? plan?.criteria.map(item => `• ${item}`).join('\n') : '');
     write(field('original'), proposal?.original);
     write(field('replacement'), proposal?.replacement);
-    const showApplied = applied || phase === 'applying';
-    show('applied', showApplied);
-    write(field('applied'), showApplied ? 'Approved replacement applied to this file.' : '');
+    show('applied', Boolean(applied));
+    write(field('applied'), applied ? 'Approved replacement applied to this file.' : '');
 
     const canRecord = phase === 'ready-to-review' && Boolean(task.revision) && tests.length < 4;
     show('verification', Boolean(applied));

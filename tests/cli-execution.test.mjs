@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as delay } from 'node:timers/promises';
 import { randomUUID } from 'node:crypto';
 import { smokeCLI } from '../scripts/smoke-cli.mjs';
@@ -61,6 +62,83 @@ for (const json of [false, true]) {
 
 test('source CLI completes, persists, deduplicates, cancels and reports failure without a display', async () => {
   assert.equal((await smokeCLI(process.execPath, entry)).headless, true);
+});
+
+test('a fresh CLI preserves deduplication and workspace ownership after the owner crashes before spawn', () => {
+  const root = mkdtempSync(join(tmpdir(), 'organis-cli-crash-'));
+  try {
+    const workspace = join(root, 'workspace');
+    const stateDir = join(root, 'state');
+    mkdirSync(workspace);
+    const commandId = randomUUID();
+    const fixtureArgs = ['fixture', '--workspace', workspace];
+    const request = [...fixtureArgs, '--command-id', commandId];
+    const run = (args, nodeArgs = []) => spawnSync(process.execPath, [...nodeArgs, entry, 'run', ...args,
+      '--state-dir', stateDir, '--json'], { encoding: 'utf8', timeout: 10000, windowsHide: true });
+
+    // Kill the CLI after launch intent commits but before the fixture starts.
+    const fixtureEntry = fileURLToPath(new URL('../packages/runtime/src/fixture-process.mjs', import.meta.url));
+    const crashBeforeSpawn = `
+      import childProcess from 'node:child_process';
+      import { syncBuiltinESMExports } from 'node:module';
+      const spawn = childProcess.spawn;
+      childProcess.spawn = (...args) => {
+        if (Array.isArray(args[1]) && args[1].includes(${JSON.stringify(fixtureEntry)})) process.kill(process.pid, 'SIGKILL');
+        return spawn(...args);
+      };
+      syncBuiltinESMExports();
+    `;
+    const crashed = run(request, ['--import', `data:text/javascript,${encodeURIComponent(crashBeforeSpawn)}`]);
+    assert.ifError(crashed.error);
+    // A self-terminated Windows process is reported with exit status 1, not a signal.
+    if (process.platform === 'win32') assert.equal(crashed.status, 1, crashed.stderr);
+    else assert.equal(crashed.signal, 'SIGKILL', crashed.stderr);
+    // Check durable state before any recovery, since abrupt exit may truncate stdout.
+    const db = new DatabaseSync(join(stateDir, 'runtime.sqlite'), { readOnly: true });
+    let original;
+    try {
+      original = db.prepare(`SELECT runs.id, runs.state, runs.process_pid, owners.closed_at
+        FROM runs JOIN owners ON owners.id = runs.owner_id
+        JOIN events ON events.run_id = runs.id AND events.type = 'launch_requested'
+        WHERE runs.command_id = ?`).get(commandId);
+    } finally { db.close(); }
+    assert.ok(original, 'The crashed owner must have committed launch intent');
+    assert.equal(original.state, 'queued');
+    assert.equal(original.process_pid, null);
+    assert.equal(original.closed_at, null);
+
+    const retry = run(request);
+    assert.equal(retry.status, 1, retry.error?.message ?? retry.stderr);
+    const [accepted, result] = retry.stdout.trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(accepted.type, 'accepted');
+    assert.equal(accepted.duplicate, true);
+    assert.equal(accepted.run.id, original.id);
+    assert.equal(result.type, 'result');
+    assert.equal(result.run.id, original.id);
+    assert.equal(result.run.state, 'interrupted');
+    assert.equal(result.run.errorCode, 'OWNER_LOST');
+    assert.equal(result.run.ownershipRetained, true);
+    assert.equal(result.run.processPid, null);
+
+    const expectError = (args, code) => {
+      const rejected = run(args);
+      assert.equal(rejected.status, 1, rejected.error?.message ?? rejected.stderr);
+      assert.equal(rejected.stdout, '');
+      assert.equal(JSON.parse(rejected.stderr.trim().split('\n').at(-1)).code, code);
+    };
+    expectError([...request, '--mode', 'fail'], 'COMMAND_CONFLICT');
+    expectError([...fixtureArgs, '--command-id', randomUUID()], 'WORKSPACE_BUSY');
+
+    const listed = run(['list']);
+    assert.equal(listed.status, 0, listed.error?.message ?? listed.stderr);
+    assert.deepEqual(JSON.parse(listed.stdout).runs.map(item => item.id), [original.id]);
+    const history = run(['events', original.id]);
+    assert.equal(history.status, 0, history.error?.message ?? history.stderr);
+    const { events } = JSON.parse(history.stdout);
+    assert.equal(events.filter(event => event.type === 'launch_requested').length, 1);
+    assert.equal(events.some(event => event.type === 'process_started' || event.type === 'fixture_ready'), false);
+    assert.equal(events.find(event => event.type === 'ownership_retained')?.reason, 'launch_identity_unverified');
+  } finally { rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
 
 test('another CLI process requests cancellation and observes confirmed termination', { timeout: 30000 }, async () => {

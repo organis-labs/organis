@@ -1,1 +1,1 @@
-export const scope = 'runtime';
+export const scope = 'Runtime';

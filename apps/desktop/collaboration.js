@@ -20,7 +20,7 @@
     'ready-to-plan': 'plan',
     'ready-to-propose': 'propose',
     'awaiting-approval': 'apply',
-    'ready-to-review': 'review',
+    'ready-to-review': 'plan',
     'revision-requested': 'revise'
   };
   const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'revision-limit']);

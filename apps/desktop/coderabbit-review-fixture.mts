@@ -1,1 +1,1 @@
-export const scope = 'desktop';
+export const scope = 'Desktop';

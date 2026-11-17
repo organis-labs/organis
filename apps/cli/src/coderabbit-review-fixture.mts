@@ -1,1 +1,1 @@
-export const scope = 'cli';
+export const scope = 'CLI';

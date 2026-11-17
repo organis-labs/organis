@@ -443,7 +443,7 @@ collaboration, then full desktop acceptance. Preserve existing work-item IDs.
 | R07 | Decide licensing and publish contribution expectations | Maintainer-approved license and provenance checks |
 | R08 | Review the [room collaboration draft](specs/room-collaboration.md) | Explicit target/lead/privacy rules, approval, cancellation and revision bounds before R09 |
 | R09 | Add second real participant and plan/code/review flow | M2.5 artifacts, actual test records, bounded revisions, failure/cancel acceptance |
-| R10 | Inventory private predecessor capabilities | Sanitized extraction matrix with provenance and unknowns; no bulk import or cutover |
+| R10 | [Inventory private predecessor capabilities](decisions/predecessor-capability-inventory.md) | Sanitized extraction matrix with provenance and unknowns; no bulk import or cutover |
 | R11 | Extract one reviewed reusable capability | Synthetic tests, fresh-machine acceptance and preserved original behavior |
 | R12 | Specify shared desktop/mobile room interaction and control contracts | M1 identities plus mobile M3 flows, delivery/reconnect, attachment and permission decisions |
 | R13 | Implement mobile shared-room client after M7 | M9 phone-originated work, steering, approval, cancellation and cross-client recovery evidence |

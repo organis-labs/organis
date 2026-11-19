@@ -24,7 +24,19 @@
     <div class="conversation" aria-label="Conversation">
       <div class="conversation-content">
         <h2>Local chat</h2>
-        <p class="chat-guide" id="chat-guide">Select a project to ask Codex a question or plan a file change with Claude and Codex.</p>
+        <section class="room-controls" aria-label="Collaboration rooms">
+          <label>Room <select id="room-select" disabled><option value="">No room selected</option></select></label>
+          <form id="room-create">
+            <label>Room name <input id="room-name" required maxlength="100" disabled></label>
+            <button id="room-create-button" type="submit" class="secondary" disabled>Create room</button>
+          </form>
+          <div id="room-participants" class="room-participants" hidden>
+            <span id="room-members"></span>
+            <button type="button" id="room-add-claude" class="secondary">Add Claude</button>
+            <button type="button" id="room-add-codex" class="secondary">Add Codex</button>
+          </div>
+        </section>
+        <p class="chat-guide" id="chat-guide">Choose a project to work with Codex. For collaboration, open a room and add Claude and Codex.</p>
         <p id="chat-request" aria-label="Your message" hidden></p>
         <p id="codex-turn-status" role="status"></p>
         <details id="codex-approval" hidden>

@@ -1,6 +1,20 @@
 import type { FileChange } from './execution-types.mjs';
 
+export type CollaborationProvider = 'claude' | 'codex';
+
+export interface CollaborationRoom {
+  id: string;
+  name: string;
+  participants: Partial<Record<CollaborationProvider, string>>;
+}
+
+export interface CollaborationRooms {
+  selectedRoomId: string | null;
+  rooms: CollaborationRoom[];
+}
+
 export interface CollaborationRequest {
+  roomId: string;
   projectId: string;
   request: string;
   commandId: string;

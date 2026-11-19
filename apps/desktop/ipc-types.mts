@@ -1,6 +1,6 @@
 import type { AcceptedRun, FileChange, FixtureMode, PendingApproval, RunEvent, RunSnapshot, RunState }
   from '../../packages/runtime/src/execution-types.mjs';
-import type { CollaborationRequest, CollaborationSnapshot, RecordTestRequest }
+import type { CollaborationProvider, CollaborationRequest, CollaborationRooms, CollaborationSnapshot, RecordTestRequest }
   from '../../packages/runtime/src/collaboration-types.mjs';
 
 interface CodexResult {
@@ -29,6 +29,10 @@ type CollaborationResult = Promise<CollaborationSnapshot | null>;
 type CollaborationAction = (id: string, attempt: number) => CollaborationResult;
 
 export interface CollaborationIpc {
+  listRooms(): Promise<CollaborationRooms>;
+  createRoom(name: string): Promise<CollaborationRooms>;
+  openRoom(id: string): Promise<CollaborationRooms>;
+  addParticipant(id: string, provider: CollaborationProvider): Promise<CollaborationRooms>;
   prepare(input: CollaborationRequest): CollaborationResult;
   status(): CollaborationResult;
   plan: CollaborationAction;

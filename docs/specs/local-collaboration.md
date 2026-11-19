@@ -7,6 +7,10 @@ with workspace tools, MCP, project settings and session persistence disabled.
 Organis does not collect provider credentials or use a shared account.
 [Claude Code CLI documentation](https://code.claude.com/docs/en/headless)
 
+Create a named room or open a saved one, then add **Claude** and **Codex**.
+Adding a participant records room membership. The provider sign-in still uses
+Settings. The room and participant IDs persist in the local desktop profile.
+
 1. Choose a registered project, describe the change and select **Plan with Claude
    + Codex**. Pick one existing UTF-8 text file directly inside the project root.
    Both versions must fit in 4 KiB.
@@ -27,12 +31,13 @@ Organis does not collect provider credentials or use a shared account.
    Review can pass, fail or request a revision. One user-confirmed revision is
    available and its replacement requires a fresh native approval.
 
-The desktop panel has one local collaboration at a time with fixed roles. The
-Claude stages are text-only and the Codex stage uses the existing read-only
+The desktop panel has one active local collaboration at a time with fixed roles.
+Finish or cancel it before switching rooms. Reopening a room shows its latest
+saved task until you close it. The Claude stages are text-only and the Codex
+stage uses the existing read-only
 runtime. The handoff excludes chat history and unrelated project files. An
-unrecorded test stays unrecorded even if the review passes. General room
-management, arbitrary commands, steering and queued messages are outside this
-slice.
+unrecorded test stays unrecorded even if the review passes. Arbitrary commands,
+steering and queued messages are outside this slice.
 
 Each task records attempt and stage IDs in the desktop's local profile.
 **Close task** removes the saved collaboration contents from that profile.

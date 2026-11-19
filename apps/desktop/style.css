@@ -26,6 +26,11 @@ textarea { color: var(--ink); }
 .conversation h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.03em; }
 .chat-guide, .conversation [role="status"] { font-size: 14px; line-height: 1.55; color: var(--muted); }
 .chat-guide { margin: 0 0 20px; }
+.room-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; margin: 10px 0; }
+.room-controls label { display: grid; gap: 3px; font-size: 12px; }
+.room-controls input { min-width: 0; max-width: 100%; border: 1px solid var(--border); border-radius: 7px; padding: 7px 8px; background: var(--card); }
+.room-controls form, .room-participants { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.room-participants { flex-basis: 100%; align-items: center; font-size: 13px; }
 #chat-request { margin: 16px 0 16px auto; width: fit-content; max-width: 85%; padding: 9px 12px; border-radius: 10px; background: var(--soft); white-space: pre-wrap; font-size: 14px; }
 .conversation [role="status"]:empty { display: none; }
 #codex-approval summary { cursor: pointer; font-weight: 600; }

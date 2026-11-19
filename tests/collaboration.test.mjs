@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { createCollaboration, openCollaborationJournal } from '../packages/runtime/src/collaboration.mjs';
+import { createCollaboration, openCollaborationJournal } from '../packages/runtime/src/collaboration.mts';
 import { createClaudeTaskRunner } from '../packages/runtime/src/claude.mjs';
 
-function fixture(t) {
+function fixture(t, { empty = false } = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'organis-collaboration-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const projectId = randomUUID();
@@ -36,7 +36,7 @@ function fixture(t) {
         assert.equal(selection.target, target);
         assert.equal(selection.expected.file.text, state.text);
         selection.onRun('codex-provider-run-' + state.writes);
-        inputs.push({ agent: 'codex', instructions });
+        inputs.push({ agent: 'codex', instructions, roomId: selection.roomId, participantId: selection.participantId });
         return { id: 'native-proposal', target, original: state.text, replacement: state.replacement };
       },
       approve: async (id, authorize) => {
@@ -52,15 +52,80 @@ function fixture(t) {
     },
     verifyCodexTermination: async () => false
   };
-  const request = { projectId, request: 'User goal', commandId: randomUUID() };
   const room = createCollaboration(deps);
+  let roomId;
+  if (!empty) {
+    roomId = room.createRoom('Changes').selectedRoomId;
+    room.addParticipant(roomId, 'claude');
+    room.addParticipant(roomId, 'codex');
+  }
+  const request = { roomId, projectId, request: 'User goal', commandId: randomUUID() };
   async function untilProposal() {
     const task = await room.prepare(request);
     await room.plan(task.id, task.attempt);
     return room.propose(task.id, task.attempt);
   }
-  return { deps, inputs, journal, plan, projectId, request, room, state, target, untilProposal };
+  return { deps, directory, inputs, journal, plan, projectId, request, room, state, target, untilProposal };
 }
+
+test('saved rooms keep their participants and collaboration when the journal reopens', async t => {
+  const f = fixture(t, { empty: true });
+  assert.deepEqual(f.room.listRooms(), { selectedRoomId: null, rooms: [] });
+  const first = f.room.createRoom('First room').selectedRoomId;
+  const other = f.room.createRoom('Other room').selectedRoomId;
+  f.room.openRoom(first);
+  const request = { ...f.request, roomId: first };
+  await assert.rejects(f.room.prepare(request), /Add Claude and Codex/);
+  f.room.addParticipant(first, 'claude');
+  const { rooms: [savedRoom] } = f.room.addParticipant(first, 'codex');
+  assert.deepEqual(f.room.addParticipant(first, 'claude').rooms[0], savedRoom);
+
+  const prepare = f.room.prepare(request);
+  assert.throws(() => f.room.openRoom(other), /Finish or cancel/);
+  const task = await prepare;
+  assert.equal(task.roomId, first);
+  assert.deepEqual(task.participants, savedRoom.participants);
+  assert.throws(() => f.room.createRoom('Not yet'), /Finish or cancel/);
+  await f.room.plan(task.id, task.attempt);
+  await f.room.propose(task.id, task.attempt);
+  assert.throws(() => f.room.openRoom(other), /Finish or cancel/);
+  await f.room.apply(task.id, task.attempt);
+  assert.equal(f.inputs[1].roomId, first);
+  assert.equal(f.inputs[1].participantId, savedRoom.participants.codex);
+
+  const restored = createCollaboration({ ...f.deps, journal: openCollaborationJournal(f.directory) });
+  assert.equal(restored.listRooms().selectedRoomId, first);
+  assert.deepEqual(restored.listRooms().rooms[0], savedRoom);
+  const pendingReview = await restored.status();
+  assert.equal(pendingReview.phase, 'ready-to-review');
+  assert.equal(pendingReview.id, task.id);
+  assert.equal(pendingReview.runs.at(-1).stage, 'apply');
+  assert.equal(f.inputs.length, 2);
+  const completed = await restored.review(task.id, task.attempt);
+  assert.equal(completed.phase, 'completed');
+  assert.equal(f.state.writes, 1);
+
+  restored.openRoom(other);
+  assert.equal(await restored.status(), null);
+  await assert.rejects(restored.prepare(request), /Open the room again/);
+  const reopened = createCollaboration({ ...f.deps, journal: openCollaborationJournal(f.directory) });
+  assert.equal(reopened.listRooms().selectedRoomId, other);
+  reopened.openRoom(first);
+  assert.deepEqual(await reopened.status(), completed);
+});
+
+test('a legacy task keeps its room, participants and recovery behavior', async t => {
+  const f = fixture(t);
+  const task = await f.room.prepare(f.request);
+  writeFileSync(path.join(f.directory, 'collaboration.json'), JSON.stringify({ schema: 1, task: f.journal.read() }));
+  const restored = createCollaboration({ ...f.deps, journal: openCollaborationJournal(f.directory) });
+  assert.deepEqual(restored.listRooms(), { selectedRoomId: task.roomId,
+    rooms: [{ id: task.roomId, name: 'Local collaboration', participants: task.participants }] });
+  const result = await restored.status();
+  assert.equal(result.id, task.id);
+  assert.equal(result.phase, 'interrupted');
+  assert.equal(f.inputs.length, 0);
+});
 
 test('one room binds the real handoff shape, a native approval and verified test evidence', async t => {
   const f = fixture(t);

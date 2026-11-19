@@ -6,6 +6,9 @@ import vm from 'node:vm';
 
 const script = readFileSync(new URL('../apps/desktop/collaboration.js', import.meta.url), 'utf8');
 
+const savedRooms = { selectedRoomId: 'room', rooms: [{ id: 'room', name: 'Saved room',
+  participants: { claude: 'planner', codex: 'writer' } }] };
+
 function renderer(api) {
   const nodes = new Map();
   let poll;
@@ -13,7 +16,7 @@ function renderer(api) {
     if (!nodes.has(id)) {
       const events = new Map();
       nodes.set(id, {
-        value: '', dataset: {}, textContent: '', reset() {}, scrollIntoView() {},
+        value: '', dataset: {}, textContent: '', reset() {}, scrollIntoView() {}, replaceChildren() {},
         addEventListener(type, callback) { events.set(type, callback); },
         event(type, event) { return events.get(type)(event); }
       });
@@ -27,8 +30,9 @@ function renderer(api) {
     await setImmediate();
   };
   vm.runInNewContext(script, {
-    window: { organisCollaboration: api },
+    window: { organisCollaboration: { listRooms: async () => savedRooms, ...api } },
     document: { querySelector: get },
+    Option: function Option() {},
     crypto: { randomUUID: () => 'command-id' },
     setInterval(callback) { poll = callback; }
   });
@@ -64,6 +68,7 @@ test('collaboration exposes each handoff before sending and separates applicatio
   await ui.click('#prepare-collaboration');
   assert.equal(actions.length, 1);
   assert.equal(actions[0][1].commandId, 'command-id');
+  assert.equal(actions[0][1].roomId, 'room');
   assert.equal(ui.get('#collaboration-request').textContent, base.request);
   assert.equal(ui.get('#chat-submit').inert, true);
   assert.equal(ui.get('#collaboration-propose').hidden, true);
@@ -87,6 +92,31 @@ test('collaboration exposes each handoff before sending and separates applicatio
     ['plan', 'task', 1], ['propose', 'task', 1], ['apply', 'task', 1], ['review', 'task', 1]
   ]);
   assert.equal(ui.get('#codex-prompt').value, base.request);
+});
+
+test('room creation and membership must complete before collaboration can start', async () => {
+  let state = { selectedRoomId: null, rooms: [] };
+  const ui = renderer({
+    listRooms: async () => state,
+    status: async () => null,
+    createRoom: async name => (state = { selectedRoomId: 'new', rooms: [{ id: 'new', name, participants: {} }] }),
+    addParticipant: async (id, provider) => {
+      assert.equal(id, 'new');
+      state.rooms[0].participants[provider] = provider + '-id';
+      return state;
+    }
+  });
+  await setImmediate();
+  assert.equal(ui.get('#prepare-collaboration').disabled, true);
+  ui.get('#room-name').value = 'New room';
+  ui.get('#room-create').event('submit', { preventDefault() {} });
+  await setImmediate();
+  assert.equal(ui.get('#room-select').value, 'new');
+  await ui.click('#room-add-claude');
+  assert.equal(ui.get('#prepare-collaboration').disabled, true);
+  await ui.click('#room-add-codex');
+  assert.equal(ui.get('#prepare-collaboration').disabled, false);
+  assert.equal(ui.get('#room-members').textContent, 'Claude (lead) · Codex');
 });
 
 test('cancel remains available during planning and a late plan cannot replace the cancelled task', async () => {

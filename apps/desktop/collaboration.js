@@ -12,6 +12,18 @@
   const composer = /** @type {HTMLFormElement} */ (document.querySelector('#codex-question'));
   const codexActions = /** @type {HTMLElement} */ (document.querySelector('#chat-submit'));
   const launchError = field('launch-error');
+  const roomSelect = /** @type {HTMLSelectElement} */ (document.querySelector('#room-select'));
+  const roomName = /** @type {HTMLInputElement} */ (document.querySelector('#room-name'));
+  const createRoomButton = /** @type {HTMLButtonElement} */ (document.querySelector('#room-create-button'));
+  const roomMembers = /** @type {HTMLElement} */ (document.querySelector('#room-members'));
+  const roomParticipants = /** @type {HTMLElement} */ (document.querySelector('#room-participants'));
+  const addMember = {
+    claude: /** @type {HTMLButtonElement} */ (document.querySelector('#room-add-claude')),
+    codex: /** @type {HTMLButtonElement} */ (document.querySelector('#room-add-codex'))
+  };
+  /** @type {import('../../packages/runtime/src/collaboration-types.mjs').CollaborationRooms | undefined} */
+  let roomState;
+  const selectedRoom = () => roomState?.rooms.find(item => item.id === roomState?.selectedRoomId);
   const testEntry = /** @type {HTMLDetailsElement} */ (field('test-entry'));
   const testForm = /** @type {HTMLFormElement} */ (field('test-form'));
 
@@ -76,8 +88,19 @@
 
   function render() {
     room.hidden = !task;
-    prepare.disabled = Boolean(task || pending);
+    const selected = selectedRoom();
     const running = Boolean(task && !terminal.has(task.phase));
+    const roomControlsLocked = !roomState || running || Boolean(pending || cancelling);
+    roomSelect.value = selected?.id ?? '';
+    roomSelect.disabled = roomControlsLocked || roomState?.rooms.length === 0;
+    roomName.disabled = createRoomButton.disabled = roomControlsLocked;
+    roomParticipants.hidden = !selected;
+    addMember.claude.hidden = Boolean(selected?.participants.claude);
+    addMember.codex.hidden = Boolean(selected?.participants.codex);
+    addMember.claude.disabled = addMember.codex.disabled = roomControlsLocked;
+    const labels = [selected?.participants.claude && 'Claude (lead)', selected?.participants.codex && 'Codex'].filter(Boolean);
+    write(roomMembers, labels.length ? labels.join(' · ') : 'No participants yet');
+    prepare.disabled = Boolean(task || pending || !selected?.participants.claude || !selected.participants.codex);
     codexActions.inert = running || pending === 'prepare';
     if (!task) {
       delete room.dataset.phase;
@@ -201,15 +224,59 @@
     }
   }
 
+  /** @param {import('../../packages/runtime/src/collaboration-types.mjs').CollaborationRooms} state */
+  function setRooms(state) {
+    const changedRoom = state.selectedRoomId !== roomState?.selectedRoomId;
+    roomState = state;
+    const placeholder = new Option('No room selected', '');
+    placeholder.disabled = true;
+    roomSelect.replaceChildren(placeholder, ...state.rooms.map(item => new Option(item.name, item.id)));
+    if (changedRoom) {
+      command = undefined;
+      update(null);
+    } else render();
+  }
+
+  /** @param {() => Promise<import('../../packages/runtime/src/collaboration-types.mjs').CollaborationRooms>} action */
+  function changeRoom(action) {
+    void perform('room', async () => {
+      setRooms(await action());
+      return api.status();
+    });
+  }
+
+  document.querySelector('#room-create')?.addEventListener('submit', event => {
+    event.preventDefault();
+    const name = roomName.value.trim();
+    if (!name || createRoomButton.disabled) return;
+    changeRoom(async () => {
+      const state = await api.createRoom(name);
+      roomName.value = '';
+      return state;
+    });
+  });
+  roomSelect.addEventListener('change', () => {
+    const id = roomSelect.value;
+    if (id) changeRoom(() => api.openRoom(id));
+  });
+  for (const provider of /** @type {const} */ (['claude', 'codex'])) {
+    addMember[provider].addEventListener('click', () => {
+      const selected = selectedRoom();
+      if (selected) changeRoom(() => api.addParticipant(selected.id, provider));
+    });
+  }
+
   prepare.addEventListener('click', () => {
+    const selected = selectedRoom();
     const projectId = project.value;
     const request = prompt.value.trim();
+    if (!selected?.participants.claude || !selected.participants.codex) return;
     if (!projectId || !request) {
       setError('Choose a project and describe the change first.');
       return;
     }
-    if (!command || command.projectId !== projectId || command.request !== request) {
-      command = { projectId, request, commandId: crypto.randomUUID() };
+    if (!command || command.roomId !== selected.id || command.projectId !== projectId || command.request !== request) {
+      command = { roomId: selected.id, projectId, request, commandId: crypto.randomUUID() };
     }
     const requestToSend = command;
     void perform('prepare', async () => {
@@ -275,6 +342,9 @@
   }, { capture: true });
 
   render();
-  void refresh();
+  void perform('room', async () => {
+    setRooms(await api.listRooms());
+    return api.status();
+  });
   setInterval(() => { if (task || pending) void refresh(); }, 1000);
 })();

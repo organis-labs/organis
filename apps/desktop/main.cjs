@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createUpdateController } = require('./updates.cjs');
-const { createExecutionController } = require('./execution.cjs');
+const { createExecutionController } = require('./execution.cts');
 const { createAgentController } = require('./agents.cjs');
 const { registerProjectHandlers } = require('./projects.cjs');
 const { mkdtempSync, mkdirSync, rmdirSync, rmSync, writeFileSync } = require('node:fs');
@@ -173,6 +173,30 @@ function createWindow() {
           if ((await window.organisProjects.list()).length) throw new Error('Project was not removed');
         })()`);
         console.log('ORGANIS_DESKTOP_PROJECT_REGISTRY_SMOKE_OK');
+        await window.webContents.executeJavaScript(`(async () => {
+          const field = id => document.getElementById(id);
+          const wait = async predicate => {
+            const deadline = Date.now() + 5000;
+            while (!predicate()) {
+              if (Date.now() > deadline) throw new Error('Room management did not finish');
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+          };
+          await wait(() => !field('room-create-button').disabled);
+          field('room-name').value = 'Smoke room';
+          field('room-create').requestSubmit();
+          await wait(() => field('room-select').value && !field('room-add-claude').disabled);
+          field('room-add-claude').click();
+          await wait(() => field('room-add-claude').hidden && !field('room-add-codex').disabled);
+          field('room-add-codex').click();
+          await wait(() => !field('prepare-collaboration').disabled);
+          const { selectedRoomId, rooms } = await window.organisCollaboration.listRooms();
+          if (rooms.length !== 1 || rooms[0].id !== selectedRoomId || selectedRoomId !== field('room-select').value
+              || rooms[0].name !== 'Smoke room' || !rooms[0].participants.claude || !rooms[0].participants.codex) {
+            throw new Error('The renderer room does not match the saved room');
+          }
+        })()`);
+        console.log('ORGANIS_DESKTOP_ROOMS_SMOKE_OK');
         await window.webContents.executeJavaScript(`(async () => {
           const wait = async predicate => {
             const deadline = Date.now() + 15000;

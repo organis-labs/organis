@@ -5,14 +5,16 @@
     "strict": true,
     "allowJs": true,
     "noEmit": true,
+    "erasableSyntaxOnly": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
   "include": [
     "packages/runtime/src/*-types.mts",
+    "packages/runtime/src/collaboration.mts",
     "apps/desktop/ipc-types.mts",
     "apps/desktop/preload.cjs",
-    "apps/desktop/execution.cjs",
+    "apps/desktop/execution.cts",
     "apps/desktop/collaboration.js"
   ]
 }

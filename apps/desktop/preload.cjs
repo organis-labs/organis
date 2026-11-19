@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('organisExecution', Object.freeze(execution));
 
 /** @type {import('./ipc-types.mjs').CollaborationIpc} */
 const collaboration = {
+  listRooms: () => invoke('collaboration:listRooms'),
+  createRoom: name => invoke('collaboration:createRoom', name),
+  openRoom: id => invoke('collaboration:openRoom', id),
+  addParticipant: (id, provider) => invoke('collaboration:addParticipant', id, provider),
   prepare: input => invoke('collaboration:prepare', input),
   status: () => invoke('collaboration:status'),
   plan: (id, attempt) => invoke('collaboration:plan', id, attempt),

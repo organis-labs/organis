@@ -1,43 +1,44 @@
-// @ts-check
-const { dialog, ipcMain } = require('electron');
-const { pathToFileURL } = require('node:url');
-const path = require('node:path');
-const { createFileChangeController } = require('./file-change.cjs');
+import type { App, BrowserWindow, IpcMainInvokeEvent } from 'electron';
+import type { LocalRuntime } from '../../packages/runtime/src/execution.mjs';
+import type { CollaborationIpc, ExecutionIpc, IpcHandlers } from './ipc-types.mjs';
 
-/**
- * @param {{ app: Electron.App, trustedSender: (event: Electron.IpcMainInvokeEvent) => boolean,
- * getWindow: () => Electron.BrowserWindow, stateDir?: string, smokeWorkspace?: string,
- * getCodexExecutable: () => string | undefined, getClaudeExecutable: () => string | undefined }} options
- */
-exports.createExecutionController = async ({
+const { dialog, ipcMain }: typeof import('electron') = require('electron');
+const { pathToFileURL }: typeof import('node:url') = require('node:url');
+const path: typeof import('node:path') = require('node:path');
+const { createFileChangeController }: typeof import('./file-change.cjs') = require('./file-change.cjs');
+
+interface ExecutionControllerOptions {
+  app: App;
+  trustedSender: (event: IpcMainInvokeEvent) => boolean;
+  getWindow: () => BrowserWindow;
+  stateDir?: string;
+  smokeWorkspace?: string;
+  getCodexExecutable: () => string | undefined;
+  getClaudeExecutable: () => string | undefined;
+}
+
+async function createExecutionController({
   app, trustedSender, getWindow, stateDir, smokeWorkspace, getCodexExecutable, getClaudeExecutable
-}) => {
+}: ExecutionControllerOptions) {
   const location = app.isPackaged
     ? path.join(process.resourcesPath, 'runtime', 'src', 'execution.mjs')
     : path.join(__dirname, '../../packages/runtime/src/execution.mjs');
-  /** @type {import('../../packages/runtime/src/execution.mjs').LocalRuntime} */
-  let runtime;
-  /** @type {ReturnType<typeof createFileChangeController>} */
-  let fileChange;
-  /** @type {import('./ipc-types.mjs').IpcHandlers<import('./ipc-types.mjs').CollaborationIpc> & {busy(): boolean, close(): Promise<void>}} */
-  let collaboration;
+  let runtime: LocalRuntime;
+  let fileChange: ReturnType<typeof createFileChangeController>;
+  let collaboration: (IpcHandlers<CollaborationIpc> & { busy(): boolean; close(): Promise<void> }) | undefined;
   let standaloneStarts = 0;
-  /** @type {Error | undefined} */
-  let unavailable;
-  /** @type {Error | undefined} */
-  let collaborationUnavailable;
+  let unavailable: Error | undefined;
+  let collaborationUnavailable: Error | undefined;
   try {
-    const { LocalRuntime } = /** @type {typeof import('../../packages/runtime/src/execution.mjs')} */ (await import(pathToFileURL(location).href));
+    const { LocalRuntime } = await import(pathToFileURL(location).href) as typeof import('../../packages/runtime/src/execution.mjs');
     runtime = new LocalRuntime({ stateDir, busyTimeoutMs: 250 });
     fileChange = createFileChangeController({ runtime, dialog, getWindow, getCodexExecutable });
     try {
-      /** @param {string} name */
-      const here = name => pathToFileURL(path.join(path.dirname(location), name)).href;
-      const [{ createCollaboration, openCollaborationJournal }, { runClaudeTask }] = /** @type {[
-        typeof import('../../packages/runtime/src/collaboration.mjs'), typeof import('../../packages/runtime/src/claude.mjs')
-      ]} */ (await Promise.all([
-        import(here('collaboration.mjs')), import(here('claude.mjs'))
-      ]));
+      const here = (name: string) => pathToFileURL(path.join(path.dirname(location), name)).href;
+      const [{ createCollaboration, openCollaborationJournal }, { runClaudeTask }] = await Promise.all([
+        import(here('collaboration.mts')) as Promise<typeof import('../../packages/runtime/src/collaboration.mts')>,
+        import(here('claude.mjs')) as Promise<typeof import('../../packages/runtime/src/claude.mjs')>
+      ]);
       collaboration = createCollaboration({
         journal: openCollaborationJournal(stateDir ?? app.getPath('userData')),
         selectFile: async () => {
@@ -50,11 +51,11 @@ exports.createExecutionController = async ({
           });
           return result.canceled ? null : result.filePaths[0];
         },
-        inspect: (/** @type {string} */ projectId, /** @type {string} */ target) => runtime.inspectCodexFileChangeTarget(projectId, target),
-        claude: (/** @type {NonNullable<Parameters<typeof runClaudeTask>[0]>} */ options) =>
+        inspect: (projectId, target) => runtime.inspectCodexFileChangeTarget(projectId, target),
+        claude: options =>
           runClaudeTask({ ...options, executable: getClaudeExecutable() }),
         fileChange,
-        verifyCodexTermination: async (/** @type {string | undefined} */ id, /** @type {string | undefined} */ commandId) => {
+        verifyCodexTermination: async (id, commandId) => {
           if (!id) return false;
           await runtime.reconcile();
           const run = runtime.listRuns().find(run => run.id === id || run.commandId === commandId);
@@ -69,22 +70,15 @@ exports.createExecutionController = async ({
     const message = error instanceof Error ? error.message : String(error);
     unavailable = new Error(`Local execution is unavailable: ${message}. Your saved data was not reset. Check for an application update or repair the state directory.`);
   }
-  /**
-   * @template {unknown[]} Args
-   * @template Result
-   * @param {(...args: Args) => Result | Promise<Result>} action
-   * @returns {(...args: Args) => Promise<Result>}
-   */
-  const standalone = action => async (/** @type {Args} */ ...args) => {
-    if (collaboration?.busy()) throw new Error('Finish or cancel the current collaboration first.');
-    standaloneStarts++;
-    try { return await action(...args); }
-    finally { standaloneStarts--; }
-  };
-  /** @type {string | undefined} */
-  let workspace;
-  /** @type {import('./ipc-types.mjs').IpcHandlers<import('./ipc-types.mjs').ExecutionIpc>} */
-  const actions = {
+  const standalone = <Args extends unknown[], Result>(action: (...args: Args) => Result | Promise<Result>) =>
+    async (...args: Args): Promise<Result> => {
+      if (collaboration?.busy()) throw new Error('Finish or cancel the current collaboration first.');
+      standaloneStarts++;
+      try { return await action(...args); }
+      finally { standaloneStarts--; }
+    };
+  let workspace: string | undefined;
+  const actions: IpcHandlers<ExecutionIpc> = {
     chooseWorkspace: async () => {
       if (smokeWorkspace) workspace = smokeWorkspace;
       else {
@@ -134,15 +128,15 @@ exports.createExecutionController = async ({
       return Reflect.apply(action, undefined, [input]);
     });
   }
-  /** @satisfies {Record<keyof import('./ipc-types.mjs').CollaborationIpc, true>} */
   const collaborationChannels = {
+    listRooms: true, createRoom: true, openRoom: true, addParticipant: true,
     prepare: true, status: true, plan: true, propose: true, apply: true,
     review: true, revise: true, cancel: true, recordTest: true, dismiss: true
-  };
-  for (const name of /** @type {Array<keyof typeof collaborationChannels>} */ (Object.keys(collaborationChannels))) {
+  } satisfies Record<keyof CollaborationIpc, true>;
+  for (const name of Object.keys(collaborationChannels) as (keyof CollaborationIpc)[]) {
     ipcMain.handle(`collaboration:${name}`, (event, ...args) => {
       if (!trustedSender(event)) throw new Error('Collaboration request denied.');
-      if (unavailable || collaborationUnavailable) throw unavailable ?? collaborationUnavailable;
+      if (!collaboration) throw unavailable ?? collaborationUnavailable ?? new Error('Local collaboration is unavailable.');
       return Reflect.apply(collaboration[name], collaboration, args);
     });
   }
@@ -150,7 +144,7 @@ exports.createExecutionController = async ({
     cancelWindowActions: async () => {
       try {
         const status = await collaboration?.status();
-        if (status && collaboration.busy()) await collaboration.cancel(status.id, status.attempt);
+        if (status && collaboration?.busy()) await collaboration.cancel(status.id, status.attempt);
         else await fileChange?.discard();
       } catch { /* State and any unverified result remain in the journal. */ }
     },
@@ -160,4 +154,6 @@ exports.createExecutionController = async ({
       }
     }
   };
-};
+}
+
+module.exports = { createExecutionController };

@@ -84,16 +84,24 @@ test('malformed, contradictory, and unknown Claude Code responses fail without e
   assert.equal(wrongVersion.code, 'CLAUDE_VERSION_INVALID');
 });
 
-test('Claude Code checks distinguish explicit cancellation from timeout', async () => {
+test('Claude Code checks distinguish explicit cancellation from timeout', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const requests = [];
+  const started = Promise.withResolvers();
   const check = createClaudeChecker({ profileRoot, timeoutMs: 100, execute: async (_, args, { signal }) => {
     requests.push(args);
     signal.throwIfAborted();
-    return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+    return new Promise((_, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      started.resolve();
+    });
   } });
   assert.equal((await check({ executable, signal: AbortSignal.abort() })).code, 'CLAUDE_CHECK_CANCELLED');
   assert.equal(requests.length, 0);
-  assert.equal((await check({ executable })).code, 'CLAUDE_CHECK_TIMEOUT');
+  const timedOut = check({ executable });
+  await started.promise;
+  t.mock.timers.tick(100);
+  assert.equal((await timedOut).code, 'CLAUDE_CHECK_TIMEOUT');
   assert.deepEqual(requests, [['--version']]);
 });
 

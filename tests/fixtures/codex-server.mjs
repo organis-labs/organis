@@ -9,7 +9,8 @@ if (args[0] === '--version') {
     await new Promise(() => {});
   }
   if (mode === 'version-failed') process.exit(3);
-  console.log(mode === 'unsupported' ? 'codex-cli 0.165.0' : 'codex-cli 0.164.0');
+  const versions = { unsupported: '0.172.0', older: '0.163.9', latest: '0.171.0', intermediate: '0.169.2' };
+  console.log(`codex-cli ${versions[mode] ?? '0.164.0'}`);
   process.exit(0);
 }
 const requests = [];

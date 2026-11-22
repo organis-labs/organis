@@ -2,6 +2,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('organisAgents', Object.freeze({
+  /** @param {'codex' | 'claude'} agent @param {string} model */
+  setModel: (agent, model) => ipcRenderer.invoke('agents:setModel', agent, model),
   chooseCodex: () => ipcRenderer.invoke('agents:chooseCodex'),
   chooseClaude: () => ipcRenderer.invoke('agents:chooseClaude'),
   checkClaude: () => ipcRenderer.invoke('agents:checkClaude'),

@@ -5,6 +5,35 @@ const codexPath = document.querySelector('#codex-path');
 const loginCodexButton = document.querySelector('#login-codex');
 const cancelLoginButton = document.querySelector('#cancel-codex-login');
 let checkingCodex = false;
+for (const agent of ['codex', 'claude']) {
+  const model = document.querySelector(`#${agent}-model`);
+  let saved = '';
+  let savedRevision = 0;
+  let inputRevision = 0;
+  model.addEventListener('change', async () => {
+    const revision = ++inputRevision;
+    const value = model.value.trim();
+    try {
+      await window.organisAgents.setModel(agent, value);
+      if (revision > savedRevision) {
+        saved = value;
+        savedRevision = revision;
+      }
+      if (revision !== inputRevision) return;
+      model.value = value;
+      model.setCustomValidity('');
+    } catch {
+      if (revision !== inputRevision) return;
+      model.value = saved;
+      model.setCustomValidity('Enter a valid provider model ID, or leave it blank.');
+      model.reportValidity();
+    }
+  });
+  model.addEventListener('input', () => {
+    inputRevision++;
+    model.setCustomValidity('');
+  });
+}
 async function connectCodex(login) {
   if (checkingCodex) return;
   checkingCodex = true;

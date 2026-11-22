@@ -10,6 +10,7 @@ import {
 } from './contracts.mjs';
 import { Store } from './store.mjs';
 import { codexEnvironment } from './codex.mjs';
+import { isAgentModelId } from './agent-compatibility.mjs';
 import { isCodexApprovalMethod } from './codex-approval.mjs';
 import { fileChangePrompt, inspectFile, parseFileChange, replaceFile } from './codex-file-change.mjs';
 import { killOwnedTree, pidAlive, waitForOwnedExit } from './process-tree.mjs';
@@ -41,7 +42,7 @@ const CODEX_MODE = 'codex-read-only';
 const CODEX_DURATION_MS = 120000;
 const CODEX_CODES = new Set([
   'CODEX_NOT_FOUND', 'CODEX_EXECUTABLE_INVALID', 'CODEX_SHIM_UNSUPPORTED', 'CODEX_VERSION_UNSUPPORTED',
-  'CODEX_START_FAILED', 'CODEX_PROTOCOL_ERROR', 'CODEX_AUTH_REQUIRED', 'CODEX_SANDBOX_REQUIRED',
+  'CODEX_START_FAILED', 'CODEX_PROTOCOL_ERROR', 'CODEX_AUTH_REQUIRED', 'CODEX_SANDBOX_REQUIRED', 'CODEX_MODEL_UNAVAILABLE',
   'CODEX_RUN_TIMEOUT', 'CODEX_RUN_FAILED', 'CODEX_POLICY_UNVERIFIED', 'CODEX_EXIT_FAILED', 'CODEX_MCP_UNSUPPORTED'
 ]);
 
@@ -185,7 +186,7 @@ export class LocalRuntime {
   }
 
   /** @param {import('./execution-types.mjs').CodexRequest} options @returns {Promise<import('./execution-types.mjs').AcceptedRun>} */
-  async startCodex({ projectId, prompt, executable, commandId, profile, fileChangeWorkspaceId, roomId, participantId } = {}) {
+  async startCodex({ projectId, prompt, executable, model, commandId, profile, fileChangeWorkspaceId, roomId, participantId } = {}) {
     if (this.#closing || this.#closed) throw new RuntimeError('RUNTIME_CLOSED', 'The runtime is closed.');
     if (typeof prompt !== 'string' || !prompt.trim() || Buffer.byteLength(prompt) > 16384) {
       throw new RuntimeError('INVALID_ARGUMENT', 'The Codex prompt must contain 1 to 16384 UTF-8 bytes.');
@@ -199,15 +200,18 @@ export class LocalRuntime {
     if (profile !== undefined && !['cli', 'desktop'].includes(profile)) {
       throw new RuntimeError('INVALID_ARGUMENT', 'Invalid Organis Codex profile.');
     }
+    if (model !== undefined && !isAgentModelId(model)) {
+      throw new RuntimeError('INVALID_ARGUMENT', 'Use a valid Codex model ID.');
+    }
     const target = await this.#codexWorkspace(projectId);
     const fileChange = fileChangeWorkspaceId !== undefined;
     if (fileChange && target.fileId !== fileChangeWorkspaceId) {
       throw new RuntimeError('SCOPE_DENIED', 'The project changed. Select the file again.');
     }
     const payloadHash = hash({ kind: 'startCodex', projectId, fileId: target.fileId, prompt, executable: executable ?? null, profile,
-      ...(fileChange ? { fileChange } : {}), ...(roomId ? { roomId, participantId } : {}) });
+      ...(model === undefined ? {} : { model }), ...(fileChange ? { fileChange } : {}), ...(roomId ? { roomId, participantId } : {}) });
     return this.#enqueue(target, { kind: 'startCodex', commandId, roomId, participantId, mode: CODEX_MODE, durationMs: CODEX_DURATION_MS, scope: 'read-only',
-      payloadHash, codex: { projectId, executable, prompt, profile, fileId: target.fileId, fileChange } });
+      payloadHash, codex: { projectId, executable, model, prompt, profile, fileId: target.fileId, fileChange } });
   }
 
   async inspectCodexFileChangeTarget(projectId, target) {
@@ -215,14 +219,14 @@ export class LocalRuntime {
     return { workspace, file: inspectFile(workspace.canonical, target) };
   }
 
-  async startCodexFileChange({ projectId, target, instructions, executable, signal, expected, commandId, roomId, participantId }) {
+  async startCodexFileChange({ projectId, target, instructions, executable, model, signal, expected, commandId, roomId, participantId }) {
     const { workspace: { canonical, fileId }, file } = await this.inspectCodexFileChangeTarget(projectId, target);
     signal.throwIfAborted();
     if (expected && (expected.workspace.fileId !== fileId || expected.file.identity !== file.identity || expected.file.text !== file.text)) {
       throw new RuntimeError('SCOPE_DENIED', 'The selected file changed. Start a new collaboration with the current file.');
     }
     const { run, duplicate } = await this.startCodex({
-      projectId, prompt: fileChangePrompt(instructions, file), executable, profile: 'desktop', fileChangeWorkspaceId: fileId,
+      projectId, prompt: fileChangePrompt(instructions, file), executable, model, profile: 'desktop', fileChangeWorkspaceId: fileId,
       commandId, roomId, participantId
     });
     if (duplicate) throw new RuntimeError('COMMAND_CONFLICT', 'A file change was already requested for this attempt.');

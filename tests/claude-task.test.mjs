@@ -17,12 +17,18 @@ function success(runId, output, extras = {}) {
     session_id: runId, structured_output: output, ...extras }) };
 }
 
-function runner(task, { authMethod = 'claude.ai', loggedIn = true, ...options } = {}) {
+function runner(task, { authMethod = 'claude.ai', loggedIn = true, missingFlag, ...options } = {}) {
   return createClaudeTaskRunner({
     profileRoot, ...options,
     async execute(file, args, context) {
       assert.equal(file, executable);
       if (args[0] === '--version') return { exitCode: 0, stdout: '2.1.316 (Claude Code)\n' };
+      if (args[0] === '--help') {
+        const flags = ['--safe-mode', '--setting-sources', '--no-chrome', '--strict-mcp-config', '--mcp-config',
+          '--tools', '--no-session-persistence', '--permission-mode', '--print', '--output-format',
+          '--json-schema', '--session-id', '--model'];
+        return { exitCode: 0, stdout: flags.filter(flag => flag !== missingFlag).map(flag => `  ${flag}  Option`).join('\n') };
+      }
       if (args.includes('auth')) return { exitCode: loggedIn ? 0 : 1, stdout: JSON.stringify({ loggedIn, authMethod,
         configDirectory: context.env.CLAUDE_CONFIG_DIR, email: 'PRIVATE_ACCOUNT' }) };
       return task(args, context);
@@ -31,6 +37,22 @@ function runner(task, { authMethod = 'claude.ai', loggedIn = true, ...options } 
 }
 
 const taskData = input => JSON.parse(input.slice(input.indexOf('\n') + 1));
+
+test('Claude checks isolation flags and forwards the chosen model, even when help hides max-turns', async () => {
+  const runId = randomUUID();
+  const input = { executable, runId, stage: 'plan', input: planInput, model: 'sonnet' };
+  const run = runner(async args => {
+    assert.deepEqual(args.slice(-2), ['--model', 'sonnet']);
+    assert.equal(args[args.indexOf('--max-turns') + 1], '2');
+    return success(runId, planOutput);
+  });
+  assert.deepEqual(await run(input), planOutput);
+  await assert.rejects(runner(() => assert.fail('unsafe CLI launched'), { missingFlag: '--tools' })(input),
+    { code: 'CLAUDE_TASK_UNSUPPORTED' });
+  await assert.rejects(runner(async () => ({ exitCode: 1, stdout: JSON.stringify({
+    type: 'result', is_error: true, result: 'Issue with the selected model (private detail)'
+  }) }))(input), { code: 'CLAUDE_MODEL_UNAVAILABLE' });
+});
 
 test('Claude plans using the signed-in desktop profile and only the projected request on stdin', async () => {
   const runId = randomUUID();

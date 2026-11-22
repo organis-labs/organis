@@ -15,10 +15,13 @@ interface ExecutionControllerOptions {
   smokeWorkspace?: string;
   getCodexExecutable: () => string | undefined;
   getClaudeExecutable: () => string | undefined;
+  getCodexModel: () => string | undefined;
+  getClaudeModel: () => string | undefined;
 }
 
 async function createExecutionController({
-  app, trustedSender, getWindow, stateDir, smokeWorkspace, getCodexExecutable, getClaudeExecutable
+  app, trustedSender, getWindow, stateDir, smokeWorkspace, getCodexExecutable, getClaudeExecutable,
+  getCodexModel, getClaudeModel
 }: ExecutionControllerOptions) {
   const location = app.isPackaged
     ? path.join(process.resourcesPath, 'runtime', 'src', 'execution.mjs')
@@ -32,7 +35,7 @@ async function createExecutionController({
   try {
     const { LocalRuntime } = await import(pathToFileURL(location).href) as typeof import('../../packages/runtime/src/execution.mjs');
     runtime = new LocalRuntime({ stateDir, busyTimeoutMs: 250 });
-    fileChange = createFileChangeController({ runtime, dialog, getWindow, getCodexExecutable });
+    fileChange = createFileChangeController({ runtime, dialog, getWindow, getCodexExecutable, getCodexModel });
     try {
       const here = (name: string) => pathToFileURL(path.join(path.dirname(location), name)).href;
       const [{ createCollaboration, openCollaborationJournal }, { runClaudeTask }] = await Promise.all([
@@ -53,7 +56,7 @@ async function createExecutionController({
         },
         inspect: (projectId, target) => runtime.inspectCodexFileChangeTarget(projectId, target),
         claude: options =>
-          runClaudeTask({ ...options, executable: getClaudeExecutable() }),
+          runClaudeTask({ ...options, executable: getClaudeExecutable(), model: getClaudeModel() }),
         fileChange,
         verifyCodexTermination: async (id, commandId) => {
           if (!id) return false;
@@ -100,7 +103,7 @@ async function createExecutionController({
       }
       const { run: accepted } = await runtime.startCodex({
         projectId: options.projectId, prompt: options.prompt, commandId: options.commandId,
-        executable: getCodexExecutable(), profile: 'desktop'
+        executable: getCodexExecutable(), model: getCodexModel(), profile: 'desktop'
       });
       return accepted;
     }),

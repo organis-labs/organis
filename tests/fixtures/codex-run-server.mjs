@@ -3,7 +3,7 @@ import { createInterface } from 'node:readline';
 
 const [scenario, operation] = process.argv.slice(2);
 if (operation === '--version') {
-  console.log('codex-cli 0.164.0');
+  console.log(scenario.startsWith('model-') ? 'codex-cli 0.171.0' : 'codex-cli 0.164.0');
 } else {
   const threadId = 'fixture-thread';
   const turnId = 'fixture-turn';
@@ -41,6 +41,11 @@ if (operation === '--version') {
       case 'windowsSandbox/readiness': reply({ status: scenario === 'no-sandbox' ? 'notConfigured' : 'ready' }); break;
       case 'configRequirements/read': reply({ requirements: scenario === 'managed-tool'
         ? { featureRequirements: { shell_tool: true } } : null }); break;
+      case 'model/list':
+        if (!scenario.startsWith('model-')) process.exit(94);
+        reply(params.cursor ? { data: [{ model: 'fixture-model' }], nextCursor: null } :
+          { data: [], nextCursor: scenario === 'model-missing' ? null : 'next' });
+        break;
       case 'config/read': {
         const mcp = scenario === 'mcp' || (scenario === 'mcp-appeared' && openedThread);
         reply({ config: mcp ? { mcp_servers: { fixture: { command: 'never-start-this' } } } : {} });
@@ -49,14 +54,15 @@ if (operation === '--version') {
       case 'thread/start':
         if (params.cwd !== process.cwd() || params.sandbox !== 'read-only'
             || params.approvalPolicy !== 'never' || scenario === 'mcp' || scenario === 'managed-tool') process.exit(89);
+        if (scenario === 'model-missing' || (scenario === 'model-selected' && params.model !== 'fixture-model')) process.exit(95);
         openedThread = true;
         reply({ thread: { id: threadId, ephemeral: true }, cwd: process.cwd(), modelProvider: 'openai',
           sandbox: { type: scenario === 'policy' ? 'workspaceWrite' : 'readOnly', networkAccess: false },
-          approvalPolicy: 'never', approvalsReviewer: 'user' });
+          approvalPolicy: 'never', approvalsReviewer: 'user', model: params.model });
         break;
       case 'turn/start':
         if (['policy', 'mcp-appeared'].includes(scenario) || params.threadId !== threadId || params.sandboxPolicy) process.exit(90);
-        if (scenario === 'complete') {
+        if (scenario === 'complete' || scenario === 'model-selected') {
           // App-server notifications may arrive before the corresponding RPC reply.
           notify('item/completed', { threadId, turnId, item: { type: 'agentMessage', text: 'SYNTHETIC_ANSWER' } });
           done('completed');

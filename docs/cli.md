@@ -138,8 +138,10 @@ for upgrade requirements.
    terminal or press Ctrl+C to request cancellation.
 
 `--executable <absolute-path>` selects a native Codex executable instead of
-searching PATH. `--command-id <uuid>` identifies a retry of the same submission
-while its project registration remains valid.
+searching PATH. `--model <id>` selects a model from the installed CLI's
+OpenAI provider catalog. The provider checks account access when the turn runs.
+Omit `--model` to use the CLI default. `--command-id <uuid>` identifies a retry
+of the same submission while its project registration remains valid.
 The preview accepts up to 16,384 UTF-8 bytes in `--prompt`, runs one ephemeral turn,
 and has a 120-second deadline. Use text you intend to send to the signed-in Codex
 provider. The task's final answer is saved locally and returned in a completed

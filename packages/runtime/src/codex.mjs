@@ -5,15 +5,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { prepareCodexProfile } from './codex-profile.mjs';
-
-// Expand only after testing the installed CLI's stable protocol. A newer CLI is
-// not assumed compatible just because its version is greater.
-export const testedCodexVersions = Object.freeze(['0.164.0']);
+import { codexVersionRange, parseCodexVersion, supportsCodexVersion } from './agent-compatibility.mjs';
 const messages = Object.freeze({
   CODEX_NOT_FOUND: 'Codex was not found. Install Codex CLI or select its executable.',
   CODEX_EXECUTABLE_INVALID: 'Select an absolute path to an existing, accessible Codex executable.',
   CODEX_SHIM_UNSUPPORTED: 'Windows command shims are not supported. Select the native codex.exe installed by Codex.',
-  CODEX_VERSION_UNSUPPORTED: 'This Codex version has not been verified. Connection checks currently support 0.164.0.',
+  CODEX_VERSION_UNSUPPORTED: `Use a stable Codex CLI version in the supported range ${codexVersionRange}.`,
+  CODEX_MODEL_UNAVAILABLE: 'The selected model is missing from this Codex provider catalog. Check the model ID or use the Codex default.',
   CODEX_START_FAILED: 'Codex could not start. Check that the selected executable runs on this device.',
   CODEX_PROTOCOL_ERROR: 'Codex returned an unexpected response. Check the supported version and try again.',
   CODEX_CHECK_TIMEOUT: 'The Codex connection check timed out. Check Codex locally, then try again.',
@@ -30,6 +28,22 @@ const messages = Object.freeze({
 });
 export function codexFault(code) { return Object.assign(new Error(messages[code]), { code }); }
 const fault = codexFault;
+
+export async function verifyCodexModel(connection, model) {
+  if (model === undefined) return;
+  let cursor;
+  const seen = new Set();
+  for (let page = 0; page < 10; page++) {
+    const result = await connection.request('model/list', { limit: 100, includeHidden: true, ...(cursor ? { cursor } : {}) });
+    if (!Array.isArray(result?.data)) throw fault('CODEX_PROTOCOL_ERROR');
+    if (result.data.some(entry => entry?.model === model)) return;
+    cursor = result.nextCursor;
+    if (cursor === null) throw fault('CODEX_MODEL_UNAVAILABLE');
+    if (typeof cursor !== 'string' || !cursor || seen.has(cursor)) throw fault('CODEX_PROTOCOL_ERROR');
+    seen.add(cursor);
+  }
+  throw fault('CODEX_PROTOCOL_ERROR');
+}
 
 export function codexEnvironment(source = process.env) {
   return Object.fromEntries(Object.entries(source).filter(([name]) =>
@@ -97,8 +111,8 @@ export function createCodexChecker({ launch = spawn, resolve = resolveCodex, tim
       abort.signal.throwIfAborted();
       connection = start(['--version']);
       const output = await connection.version();
-      version = /^codex-cli (\d+\.\d+\.\d+)\s*$/.exec(output)?.[1];
-      if (!testedCodexVersions.includes(version)) throw fault('CODEX_VERSION_UNSUPPORTED');
+      version = parseCodexVersion(output);
+      if (!supportsCodexVersion(version)) throw fault('CODEX_VERSION_UNSUPPORTED');
       await connection.close();
       connection = start(['app-server', '--stdio', '--disable', 'apps', '--disable', 'plugins',
         '--disable', 'hooks', '--disable', 'multi_agent', '--disable', 'daemon_auto_start', ...profileArgs]);

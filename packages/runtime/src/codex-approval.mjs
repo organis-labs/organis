@@ -1,3 +1,5 @@
+import { supportsCodexVersion } from './agent-compatibility.mjs';
+
 const methods = new Set([
   'item/commandExecution/requestApproval',
   'item/fileChange/requestApproval',
@@ -89,7 +91,7 @@ export function describeCodexApproval(method, params, patch) {
 // the binding out of band. Route only server requests here, separate from RPC
 // responses and notifications. Stop the session without replying on a stop result.
 export function createCodexApprovalIntake({ version, connectionId, threadId, turnId } = {}) {
-  if (version !== '0.164.0' || ![connectionId, threadId, turnId].every(isIdentifier)) {
+  if (!supportsCodexVersion(version) || ![connectionId, threadId, turnId].every(isIdentifier)) {
     throw new TypeError('Codex approval intake requires a supported version and an active turn binding.');
   }
   const requests = new Set();

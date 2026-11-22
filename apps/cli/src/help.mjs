@@ -1,10 +1,10 @@
-import { testedCodexVersions } from '../../../packages/runtime/src/codex.mjs';
+import { codexVersionRange } from '../../../packages/runtime/src/agent-compatibility.mjs';
 import { version } from './version.mjs';
 
 const manual = 'https://github.com/organis-labs/organis/blob/main/docs/cli.md';
 const codexUsage = 'organis agent codex check [--executable <absolute-path>] [--json]';
 const codexHelp = `Check the installed Codex CLI and its reported sign-in state.
-Supported Codex CLI: ${testedCodexVersions.join(', ')}.
+Supported Codex CLI: ${codexVersionRange}.
 This check does not run a task, verify sandbox enforcement, or handle approvals.
 
 Usage:
@@ -63,7 +63,7 @@ Get started:
   organis agent codex check --json
   organis agent claude check --json
 
-Codex connection checks support ${testedCodexVersions.join(', ')}.
+Codex connection checks support ${codexVersionRange}.
 Read-only Codex preview: organis run codex --help.`,
   agent: `${codexHelp}\n\nClaude Code connection check: organis agent claude check --help.`,
   'agent claude': claudeHelp,
@@ -104,7 +104,7 @@ The default state directory is ~/.organis/runtime. Saved access is a preference.
   run: `Start a local run or manage saved runs.
 
 Usage:
-  organis run codex <project-id> --prompt <text> [--executable <absolute-path>]
+  organis run codex <project-id> --prompt <text> [--executable <absolute-path>] [--model <id>]
   organis run fixture --workspace <directory> [--mode complete|fail|wait]
       [--duration <ms>] [--scope trusted-workspace] [--command-id <uuid>]
   organis run list
@@ -132,13 +132,14 @@ not confirm it. Inspect the run with organis run show <run-id>.`,
   'run codex': `Run one read-only Codex task for a registered project.
 
 Usage:
-  organis run codex <project-id> --prompt <text> [--executable <absolute-path>]
+  organis run codex <project-id> --prompt <text> [--executable <absolute-path>] [--model <id>]
       [--state-dir <directory>] [--command-id <uuid>] [--show-approval] [--json]
 
-Uses signed-in Codex CLI ${testedCodexVersions.join(', ')} and a read-only,
+Uses signed-in Codex CLI ${codexVersionRange} and a read-only,
 ephemeral turn with a 120-second limit. Shell commands and approval grants
 are disabled. This preview rejects projects with additional path rules.
 Use --prompt="--help" to send text that starts with --.
+Use --model to select a Codex catalog model. Omit it to use the Codex default.
 Read-only does not limit reads to the project directory.
 Use a compatible Codex configuration without MCP server definitions.
 Use synthetic or otherwise shareable text. The prompt is sent to Codex and

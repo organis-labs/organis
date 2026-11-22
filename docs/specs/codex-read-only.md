@@ -1,7 +1,7 @@
 
 # Codex read-only CLI preview
 
-R04 supports one ephemeral Codex 0.164.0 turn from the CLI or desktop. The project ID
+R04 supports one ephemeral turn using Codex CLI 0.164.0 through 0.171.0 from the CLI or desktop. The project ID
 selects a trusted, registered, host-local working directory. The registry's
 workspace-write settings remain preferences. This preview supplies its own fixed
 policy and rejects registrations with additional path rules.

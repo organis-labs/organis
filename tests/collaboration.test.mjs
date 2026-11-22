@@ -269,6 +269,11 @@ test('the desktop handoff is accepted by the real Claude task adapter', async t 
   const options = [];
   const runClaudeTask = createClaudeTaskRunner({ profileRoot, execute: async (_executable, args, request) => {
     if (args.includes('--version')) return { exitCode: 0, stdout: '2.1.316 (Claude Code)' };
+    if (args.includes('--help')) return { exitCode: 0, stdout: [
+      '--safe-mode', '--setting-sources', '--no-chrome', '--strict-mcp-config', '--mcp-config',
+      '--tools', '--no-session-persistence', '--permission-mode', '--print', '--output-format',
+      '--json-schema', '--session-id'
+    ].join('\n') };
     if (args.includes('status')) return { exitCode: 0, stdout: JSON.stringify({
       loggedIn: true, authMethod: 'claude.ai', configDirectory: request.env.CLAUDE_CONFIG_DIR
     }) };

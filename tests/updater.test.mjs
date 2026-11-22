@@ -105,6 +105,25 @@ test('concurrent checks are suppressed and errors allow retry without exposing d
   assert.equal(f.controller.snapshot().phase, 'current');
 });
 
+test('profile handoff is prepared before installation and discarded if installation fails', () => {
+  for (const synchronous of [true, false]) {
+    const calls = [];
+    const f = fixture({ prepareInstall: version => {
+      calls.push(version);
+      return () => calls.push('discard');
+    } });
+    f.updater.emit('update-downloaded', { version: '0.1.0-beta.2' });
+    f.updater.quitAndInstall = () => {
+      calls.push('install');
+      if (synchronous) throw Error('Install failed');
+    };
+    assert.equal(f.controller.install(), !synchronous);
+    if (!synchronous) f.updater.emit('error', Error('Native install failed'));
+    assert.deepEqual(calls, ['0.1.0-beta.2', 'install', 'discard']);
+    assert.equal(f.controller.snapshot().phase, 'error');
+  }
+});
+
 test('rejected automatic download becomes a recoverable error', async () => {
   const f = fixture();
   f.updater.checkForUpdates = async () => {

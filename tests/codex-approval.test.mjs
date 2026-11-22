@@ -80,6 +80,8 @@ test('Codex intake rejects reused request ids, limits retained ids and honors cl
   const closed = createCodexApprovalIntake(binding);
   closed.close();
   assert.deepEqual(closed.handle(binding.connectionId, request()), { disposition: 'stop', reason: 'closed' });
-  assert.throws(() => createCodexApprovalIntake({ ...binding, version: '0.167.0' }), TypeError);
+  assert.equal(createCodexApprovalIntake({ ...binding, version: '0.171.0' })
+    .handle(binding.connectionId, request()).disposition, 'deny');
+  assert.throws(() => createCodexApprovalIntake({ ...binding, version: '0.172.0' }), TypeError);
   assert.throws(() => createCodexApprovalIntake({ ...binding, turnId: '' }), TypeError);
 });

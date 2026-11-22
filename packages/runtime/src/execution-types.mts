@@ -14,6 +14,7 @@ export interface FixtureRequest {
 }
 
 export interface CodexRequest {
+  model?: string;
   projectId: string;
   prompt: string;
   commandId?: string;

@@ -248,7 +248,8 @@ app.whenReady().then(async () => {
     stateDir: smoke ? path.join(smokeRoot, 'state') : undefined,
     smokeWorkspace: smoke ? path.join(smokeRoot, 'workspace') : undefined,
     getCodexExecutable: agents.getExecutable,
-    getClaudeExecutable: agents.getClaudeExecutable
+    getClaudeExecutable: agents.getClaudeExecutable,
+    getCodexModel: agents.getCodexModel, getClaudeModel: agents.getClaudeModel
   });
   registerProjectHandlers({
     app, trustedSender, getWindow: () => mainWindow,

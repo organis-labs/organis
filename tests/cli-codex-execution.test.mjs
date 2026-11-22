@@ -90,6 +90,21 @@ test('CLI sends an inline option-like prompt as literal text', { timeout: 15000 
   assert.equal((await query('run', 'list')).runs.length, 1);
 });
 
+test('CLI selects a catalog model on Codex 0.171.0 and does not silently substitute one', { timeout: 15000 }, async t => {
+  const { start, query } = await setup(t);
+  for (const [scenario, expected] of [['model-selected', 'completed'], ['model-missing', 'failed']]) {
+    const launched = start(scenario, ['--prompt', prompt, '--model', 'fixture-model']);
+    await launched.next();
+    const { run } = await launched.next();
+    assert.equal((await launched.closed)[0], expected === 'completed' ? 0 : 1);
+    assert.equal(run.state, expected);
+    if (expected === 'failed') {
+      assert.equal(run.errorCode, 'CODEX_MODEL_UNAVAILABLE');
+      assert(!(await query('run', 'events', run.id)).events.some(event => event.type === 'codex_turn_started'));
+    }
+  }
+});
+
 test('CLI saves the provider failure and never submits a turn for an unverified policy', { timeout: 15000 }, async t => {
   const { start, query } = await setup(t);
   for (const [scenario, errorCode] of [

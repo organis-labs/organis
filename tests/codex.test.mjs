@@ -41,7 +41,16 @@ test('connection check uses only discovery RPCs, redacts account data and closes
   for (const child of children) assert.equal(child.exitCode, 0);
 });
 
+test('Codex accepts the upper bound and intermediate releases', async () => {
+  for (const [mode, version] of [['latest', '0.171.0'], ['intermediate', '0.169.2']]) {
+    const result = await checker(mode).check();
+    assert.equal(result.ok, true);
+    assert.equal(result.version, version);
+  }
+});
+
 for (const [mode, code] of [
+  ['older', 'CODEX_VERSION_UNSUPPORTED'],
   ['unsupported', 'CODEX_VERSION_UNSUPPORTED'], ['version-failed', 'CODEX_START_FAILED'], ['signed-out', 'CODEX_AUTH_REQUIRED'],
   ['unknown-auth', 'CODEX_AUTH_UNKNOWN'], ['malformed', 'CODEX_PROTOCOL_ERROR'],
   ['oversized', 'CODEX_PROTOCOL_ERROR'], ['rpc-error', 'CODEX_PROTOCOL_ERROR'], ['exit-error', 'CODEX_EXIT_FAILED']

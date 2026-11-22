@@ -26,9 +26,9 @@ The shared runtime module performs these steps with a temporary empty working
 directory and an allowlisted environment:
 
 1. Discover the executable and run `--version` without a shell.
-2. Require exactly the tested stable version, currently **0.164.0**. Other versions
-   stop before an app-server starts. This is a tested compatibility set, not a
-   claim that other versions are defective.
+2. Accept stable Codex CLI versions from **0.164.0 through 0.171.0** inclusive.
+   Versions outside this range stop before an app-server starts. The same
+   range applies to the read-only runner and approval intake.
 3. Start `app-server --stdio`; disable apps, plugins, hooks, native multi-agent
    support and daemon auto-start for this check. Use stable protocol capabilities.
 4. `initialize`, notify `initialized`, then `account/read` with

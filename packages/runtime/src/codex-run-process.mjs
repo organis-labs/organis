@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { CodexConnection, codexEnvironment, codexFault, resolveCodex, testedCodexVersions } from './codex.mjs';
+import { CodexConnection, codexEnvironment, codexFault, resolveCodex, verifyCodexModel } from './codex.mjs';
+import { parseCodexVersion, supportsCodexVersion } from './agent-compatibility.mjs';
 import { createCodexApprovalIntake, describeCodexApproval, describeCodexPatch } from './codex-approval.mjs';
 import { fileChangeSchema } from './codex-file-change.mjs';
 import { prepareCodexProfile } from './codex-profile.mjs';
@@ -18,7 +19,7 @@ const isId = value => typeof value === 'string' && value.length > 0 && value.len
 const policyError = () => codexFault('CODEX_POLICY_UNVERIFIED');
 const protocolError = () => codexFault('CODEX_PROTOCOL_ERROR');
 
-async function run({ executable, prompt, fileId, durationMs, projectId, stateDir, profile, fileChange }, { report, signal }) {
+async function run({ executable, model, prompt, fileId, durationMs, projectId, stateDir, profile, fileChange }, { report, signal }) {
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(codexFault('CODEX_RUN_TIMEOUT')), durationMs);
   let connection;
@@ -61,8 +62,8 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
     const output = await connection.version();
     await connection.close();
     connection = null;
-    const version = /^codex-cli (\d+\.\d+\.\d+)\s*$/.exec(output)?.[1];
-    if (!testedCodexVersions.includes(version)) throw codexFault('CODEX_VERSION_UNSUPPORTED');
+    const version = parseCodexVersion(output);
+    if (!supportsCodexVersion(version)) throw codexFault('CODEX_VERSION_UNSUPPORTED');
 
     verifyWorkspace();
     connection = start(selected, ['app-server', '--stdio', '--strict-config',
@@ -98,15 +99,17 @@ async function run({ executable, prompt, fileId, durationMs, projectId, stateDir
     }
     if (disabledFeatures.some(feature => requirements?.featureRequirements?.[feature] === true)) throw policyError();
     if (await hasConfiguredServers()) throw codexFault('CODEX_MCP_UNSUPPORTED');
+    await verifyCodexModel(connection, model);
     await verifyRegistration();
     const thread = await connection.request('thread/start', {
       cwd, ephemeral: true, sandbox: 'read-only', approvalPolicy: 'never', approvalsReviewer: 'user',
-      modelProvider: 'openai'
+      modelProvider: 'openai', ...(model === undefined ? {} : { model })
     });
     if (!isId(thread?.thread?.id) || thread.thread.ephemeral !== true || !matchesWorkspace(thread.cwd)
         || thread.sandbox?.type !== 'readOnly' || thread.sandbox.networkAccess !== false
         || thread.approvalPolicy !== 'never' || thread.approvalsReviewer !== 'user'
         || thread.modelProvider !== 'openai') throw policyError();
+    if (model !== undefined && thread.model !== model) throw codexFault('CODEX_MODEL_UNAVAILABLE');
     threadId = thread.thread.id;
     if (await hasConfiguredServers().catch(() => true)) {
       markUncertain();

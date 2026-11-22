@@ -2,8 +2,8 @@ const { randomUUID } = require('node:crypto');
 
 /** @param {{ runtime: import('../../packages/runtime/src/execution.mjs').LocalRuntime,
  * dialog: Electron.Dialog, getWindow: () => Electron.BrowserWindow,
- * getCodexExecutable: () => string | undefined }} options */
-exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExecutable }) => {
+ * getCodexExecutable: () => string | undefined, getCodexModel?: () => string | undefined }} options */
+exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExecutable, getCodexModel }) => {
   let pending;
 
   /** @returns {Promise<boolean>} */
@@ -55,7 +55,7 @@ exports.createFileChangeController = ({ runtime, dialog, getWindow, getCodexExec
         });
         if (picked.canceled || signal.aborted) return null;
         change.launch = runtime.startCodexFileChange({
-          projectId, target: picked.filePaths[0], instructions, executable: getCodexExecutable(), signal,
+          projectId, target: picked.filePaths[0], instructions, executable: getCodexExecutable(), model: getCodexModel?.(), signal,
           expected: selection?.expected, commandId: selection?.commandId, roomId: selection?.roomId,
           participantId: selection?.participantId
         });

@@ -7,6 +7,13 @@ with workspace tools, MCP, project settings and session persistence disabled.
 Organis does not collect provider credentials or use a shared account.
 [Claude Code CLI documentation](https://code.claude.com/docs/en/headless)
 
+Settings accepts optional Codex and Claude model IDs for the current desktop
+session. A blank field uses that CLI's default model. Codex checks a selected ID
+against its provider catalog before starting a turn. Claude Code must advertise
+the isolation and structured-output options used by Organis before it receives
+any task data. The provider still decides whether the signed-in account can use
+the selected model when the task runs.
+
 Create a named room or open a saved one, then add **Claude** and **Codex**.
 Adding a participant records room membership. The provider sign-in still uses
 Settings. The room and participant IDs persist in the local desktop profile.

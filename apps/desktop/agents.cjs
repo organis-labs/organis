@@ -6,12 +6,14 @@ exports.createAgentController = async ({ app, trustedSender, getWindow, smokeExe
   const location = app.isPackaged
     ? path.join(process.resourcesPath, 'runtime', 'src')
     : path.join(__dirname, '../../packages/runtime/src');
-  const [codex, claude] = await Promise.all([
+  const [codex, claude, { isAgentModelId }] = await Promise.all([
     import(pathToFileURL(path.join(location, 'codex.mjs')).href),
-    import(pathToFileURL(path.join(location, 'claude.mjs')).href)
+    import(pathToFileURL(path.join(location, 'claude.mjs')).href),
+    import(pathToFileURL(path.join(location, 'agent-compatibility.mjs')).href)
   ]);
   let executable = smokeExecutable;
   let claudeExecutable = smokeExecutable;
+  const models = { codex: undefined, claude: undefined };
   let pending;
   let abort;
   let closing = false;
@@ -31,6 +33,11 @@ exports.createAgentController = async ({ app, trustedSender, getWindow, smokeExe
     const selected = await chooseExecutable(event, 'Claude');
     if (selected) claudeExecutable = selected;
     return selected;
+  });
+  ipcMain.handle('agents:setModel', (event, agent, model) => {
+    if (!trustedSender(event) || closing) throw new Error('Connection request denied.');
+    if (!Object.hasOwn(models, agent) || (model !== '' && !isAgentModelId(model))) throw new Error('Invalid model ID.');
+    models[agent] = model || undefined;
   });
   const operations = {
     checkCodex: signal => codex.checkCodex({ executable, profile: 'desktop', signal }),
@@ -54,6 +61,8 @@ exports.createAgentController = async ({ app, trustedSender, getWindow, smokeExe
   return {
     getExecutable: () => executable,
     getClaudeExecutable: () => claudeExecutable,
+    getCodexModel: () => models.codex,
+    getClaudeModel: () => models.claude,
     close: async () => { closing = true; abort?.abort(); await pending; }
   };
 };

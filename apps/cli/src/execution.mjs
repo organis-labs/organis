@@ -2,7 +2,7 @@ import { LocalRuntime } from '../../../packages/runtime/src/execution.mjs';
 import { resolve } from 'node:path';
 
 const usageError = message => Object.assign(new Error(message), { code: 'INVALID_ARGUMENT' });
-const valueOptions = new Set(['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'after', 'prompt', 'executable']);
+const valueOptions = new Set(['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'after', 'prompt', 'executable', 'model']);
 
 export async function executionCommand(args) {
   const command = args.shift();
@@ -11,7 +11,7 @@ export async function executionCommand(args) {
   const approvalId = command === 'deny' ? args.shift() : undefined;
   const allowed = {
     fixture: ['workspace', 'state-dir', 'command-id', 'mode', 'duration', 'scope', 'json'],
-    codex: ['prompt', 'executable', 'state-dir', 'command-id', 'show-approval', 'json'],
+    codex: ['prompt', 'executable', 'model', 'state-dir', 'command-id', 'show-approval', 'json'],
     list: ['state-dir', 'json'], show: ['state-dir', 'json'],
     events: ['state-dir', 'after', 'json'], cancel: ['state-dir', 'command-id', 'json'],
     deny: ['state-dir', 'json'],
@@ -68,7 +68,8 @@ export async function executionCommand(args) {
   try {
     if (command === 'fixture' || command === 'codex') {
       const accepted = command === 'codex' ? await runtime.startCodex({
-        projectId: id, prompt: options.prompt, executable: options.executable, commandId: options['command-id'], profile: 'cli'
+        projectId: id, prompt: options.prompt, executable: options.executable, model: options.model,
+        commandId: options['command-id'], profile: 'cli'
       }) : await runtime.startFixture({
         workspace: resolve(options.workspace), commandId: options['command-id'],
         mode: options.mode ?? 'complete', durationMs: options.duration === undefined ? 250 : Number(options.duration),

@@ -3,12 +3,13 @@ const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 // Keep updater policy independent of Electron so failures and install guards can
 // be tested without accessing the network or modifying an installed application.
 function createUpdateController({ updater, currentVersion, disabledReason = null,
-  resolveFeed = null, onState = () => {}, schedule = setInterval, cancel = clearInterval }) {
+  resolveFeed = null, prepareInstall, onState = () => {}, schedule = setInterval, cancel = clearInterval }) {
   let state = { phase: disabledReason ? 'disabled' : 'idle', currentVersion,
     availableVersion: null, percent: null, disabledReason };
   let timer;
   let started = false;
   let disposed = false;
+  let discardProfile;
   const listeners = [];
   const snapshot = () => ({ ...state });
   function update(values) {
@@ -17,7 +18,10 @@ function createUpdateController({ updater, currentVersion, disabledReason = null
     onState(snapshot());
   }
   function failed() {
-    if (state.phase !== 'installing') update({ phase: 'error', percent: null });
+    if (state.phase === 'installing' && !discardProfile) return;
+    discardProfile?.();
+    discardProfile = undefined;
+    update({ phase: 'error', percent: null });
   }
   function listen(event, handler) {
     updater.on(event, handler);
@@ -64,8 +68,16 @@ function createUpdateController({ updater, currentVersion, disabledReason = null
   function install() {
     if (disposed || disabledReason || state.phase !== 'ready') return false;
     update({ phase: 'installing' });
-    try { updater.quitAndInstall(false, true); return true; }
-    catch { update({ phase: 'error', percent: null }); return false; }
+    try {
+      discardProfile = prepareInstall?.(state.availableVersion);
+      updater.quitAndInstall(false, true);
+      return true;
+    } catch {
+      discardProfile?.();
+      discardProfile = undefined;
+      update({ phase: 'error', percent: null });
+      return false;
+    }
   }
   function start() {
     if (started || disposed || disabledReason) return;

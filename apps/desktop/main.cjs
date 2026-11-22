@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createUpdateController } = require('./updates.cjs');
+const { createMacUpdateProfile } = require('./mac-update-profile.cjs');
 const { createExecutionController } = require('./execution.cts');
 const { createAgentController } = require('./agents.cjs');
 const { registerProjectHandlers } = require('./projects.cjs');
@@ -10,6 +11,9 @@ const { tmpdir } = require('node:os');
 
 const unavailableSmoke = process.argv.includes('--smoke-runtime-unavailable');
 const smoke = process.argv.includes('--smoke-test') || unavailableSmoke;
+const updateProfile = process.platform === 'darwin' && app.isPackaged && !smoke
+  ? createMacUpdateProfile({ app }) : null;
+updateProfile?.restore();
 let smokeTimer;
 let mainWindow;
 let updates;
@@ -268,6 +272,7 @@ app.whenReady().then(async () => {
   updates = createUpdateController({
     updater: disabledReason ? null : packagedUpdater,
     currentVersion: app.getVersion(), disabledReason,
+    prepareInstall: updateProfile?.prepare,
     resolveFeed: async () => {
       const { desktopFeed } = await loadFeedModule();
       return desktopFeed(app.getVersion());

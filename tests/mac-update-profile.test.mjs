@@ -23,7 +23,7 @@ function fixture(t) {
     const app = {
       commandLine: { hasSwitch: () => explicit },
       getVersion: () => version,
-      getPath: name => name === 'userData' ? profile : sessionData,
+      getPath: name => paths[name] ?? (name === 'userData' ? profile : sessionData),
       setPath: (name, value) => { paths[name] = value; }
     };
     const handoff = createMacUpdateProfile({ app, environment: env, account, executable: binary, now: () => time });
@@ -61,6 +61,22 @@ test('an explicit new launch setting takes precedence over a saved profile', uni
   const clean = f.launch();
   clean.restore();
   assert.deepEqual(clean.paths, {});
+});
+
+test('an update carries a restored profile through a second restart with default HOME', unix, t => {
+  const f = fixture(t);
+  const launch = options => f.launch({ ...options, env: { HOME: f.root } });
+  launch({ version: '0.1.0-beta.7', explicit: true }).prepare('0.1.0-beta.8');
+
+  const updated = launch();
+  updated.restore();
+  assert.deepEqual(updated.paths, { userData: f.profile, sessionData: f.sessionData });
+  updated.prepare('0.1.0-beta.9');
+
+  const next = launch({ version: '0.1.0-beta.9' });
+  next.restore();
+  assert.deepEqual(next.paths, { userData: f.profile, sessionData: f.sessionData });
+  assert.deepEqual(next.env, { HOME: f.root });
 });
 
 test('normal installs, installer cleanup and expired handoffs cannot override the profile', unix, t => {

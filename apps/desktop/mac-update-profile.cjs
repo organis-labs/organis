@@ -15,6 +15,7 @@ function createMacUpdateProfile({ app, environment = process.env, executable = r
   const customHome = name => isAbsolute(environment[name] ?? '') && environment[name] !== account.homedir;
   const hasProfileOverride = () => app.commandLine.hasSwitch(PROFILE_SWITCH)
     || customHome('HOME') || customHome('CFFIXED_USER_HOME');
+  let restoredProfile = false;
 
   function privateEntry(stat) {
     return stat.uid === account.uid && (stat.mode & 0o077) === 0;
@@ -30,7 +31,7 @@ function createMacUpdateProfile({ app, environment = process.env, executable = r
   }
 
   function prepare(version) {
-    if (!hasProfileOverride()) return;
+    if (!restoredProfile && !hasProfileOverride()) return;
     const profile = app.getPath('userData');
     const sessionData = app.getPath('sessionData');
     if (!isAbsolute(profile) || !isAbsolute(sessionData)) throw new Error('Invalid update profile path');
@@ -77,6 +78,7 @@ function createMacUpdateProfile({ app, environment = process.env, executable = r
     }
     app.setPath('userData', record.profile);
     app.setPath('sessionData', record.sessionData);
+    restoredProfile = true;
   }
 
   return { prepare, restore };

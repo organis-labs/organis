@@ -49,6 +49,7 @@ the PR records actual per-platform results for the tested source revision.
 | CLI update | Implemented verified staging and atomic version selection; unit/recovery coverage and scoped Mac simulated-old-version test, not full historical upgrades on every OS |
 | Runtime | M1 fixture lifecycle, versioned SQLite persistence, command deduplication and recovery; R04 read-only Codex preview for CLI and desktop |
 | Codex connection | R03 installed-CLI/version/authentication check in CLI and desktop; [decision and evidence](decisions/first-agent-adapter.md); [R04 login and read-only preview](specs/codex-read-only.md) |
+| Desktop collaboration | [Saved rooms and participants](https://github.com/organis-labs/organis/pull/24). The macOS arm64 public beta completed the real-account collaboration and Desktop/CLI run comparison on an existing runtime. |
 | Remote / sync / mobile | Not implemented |
 | License | Not selected; public source is not an open-source license grant |
 
@@ -271,6 +272,22 @@ documented outcome. Repeated clicks do not start duplicate attempts; stale appro
 views cannot authorize changed actions. The first-use flow includes recovery from
 missing agents, authentication failure and unavailable workspace paths.
 
+On November 28, 2026, macOS arm64 verification used public
+[Desktop 0.1.0-beta.8](https://github.com/organis-labs/organis/releases/tag/desktop-v0.1.0-beta.8)
+and [CLI 0.1.0-beta.10](https://github.com/organis-labs/organis/releases/tag/cli-v0.1.0-beta.10)
+from the same source commit, `0c4b3ad`. With Codex 0.171.0 and Claude Code
+2.1.332, the Desktop flow completed a real Claude plan, a read-only Codex
+proposal, native user approval, a passing byte-level test and a Claude review
+that passed. Approval changed one line in the selected synthetic file, and the
+companion file retained its original SHA-256. Desktop and CLI agreed on the
+Codex run ID and terminal state. All nine event objects matched in order and
+content.
+
+The macOS check used a separate Desktop profile with the user's existing
+Organis runtime and provider sign-ins. Fresh-install onboarding, sign-in from
+an empty profile and matching public-build collaboration coverage on Windows
+and Linux remain open.
+
 ## M4 — Persistent local host and recovery
 
 Introduce a daemon only when persistent execution is required. Define startup,
@@ -438,7 +455,7 @@ collaboration, then full desktop acceptance. Preserve existing work-item IDs.
 | R02 | Implement local CLI execution with a deterministic fixture adapter | Headless completion, denial, cancellation and restart tests |
 | R03 | Evaluate installed Claude/Codex interfaces and authentication mode — implemented | [Codex-first decision, capability/policy note and bounded text-task evidence](decisions/first-agent-adapter.md); CLI/desktop connection check |
 | R04 | Implement the selected adapter and [workspace/approval contract](specs/workspace-permissions.md) | Shared project/file permissions; four gated approval modes; M2 execution, failure/cancel and native OS enforcement evidence |
-| R05 | Specify and implement desktop room/participant flow | Fresh-install M2.5 collaboration and matching runtime state |
+| R05 | Implement desktop rooms and participants ([#24](https://github.com/organis-labs/organis/pull/24)) | macOS arm64 real-account flow and Desktop/CLI parity verified on the public beta with an existing runtime. Fresh-install acceptance and equivalent public-build evidence on Windows and Linux remain open. |
 | R06 | Close release coverage gaps for a genuine next release | Per-OS desktop/CLI old-to-new evidence; native Linux scope recorded |
 | R07 | Decide licensing and publish contribution expectations | Maintainer-approved license and provenance checks |
 | R08 | Review the [room collaboration draft](specs/room-collaboration.md) | Explicit target/lead/privacy rules, approval, cancellation and revision bounds before R09 |
